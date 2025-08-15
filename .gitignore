@@ -72,6 +72,7 @@ lerna-debug.log*
 # Remix
 /.cache
 /build
+**/build/
 /public/build
 .env
 
