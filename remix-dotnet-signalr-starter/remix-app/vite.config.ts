@@ -8,12 +8,12 @@ export default defineConfig({
     port: 5173,
     proxy: {
       "/api": {
-        target: "https://localhost:5001",
+        target: "http://localhost:5001",
         changeOrigin: true,
         secure: false // Allow self-signed certificates in development
       },
       "/chathub": {
-        target: "https://localhost:5001",
+        target: "http://localhost:5001",
         ws: true, // WebSocket upgrade for SignalR
         changeOrigin: true,
         secure: false // Allow self-signed certificates in development

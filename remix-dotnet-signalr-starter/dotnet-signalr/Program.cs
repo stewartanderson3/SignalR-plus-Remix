@@ -17,6 +17,9 @@ builder.Services.AddCors(options =>
 
 var app = builder.Build();
 
+// Configure the application to run on port 5001
+app.Urls.Add("http://localhost:5001");
+
 app.UseCors();
 
 app.MapGet("/api/health", () => Results.Ok(new { ok = true, time = DateTimeOffset.UtcNow }));
