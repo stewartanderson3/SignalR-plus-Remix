@@ -76,13 +76,6 @@ lerna-debug.log*
 /public/build
 .env
 
-# IDE
-.vscode/
-.idea/
-*.swp
-*.swo
-*~
-
 # OS
 .DS_Store
 .DS_Store?

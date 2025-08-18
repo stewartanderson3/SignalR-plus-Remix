@@ -1,0 +1,54 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "build-dotnet",
+      "command": "dotnet",
+      "type": "process",
+      "args": [
+        "build",
+        "${workspaceFolder}/remix-dotnet-signalr-starter/dotnet-signalr/DotnetSignalR.csproj",
+        "/property:GenerateFullPaths=true",
+        "/consoleloggerparameters:NoSummary"
+      ],
+      "group": "build",
+      "presentation": {
+        "reveal": "silent"
+      },
+      "problemMatcher": "$msCompile"
+    },
+    {
+      "label": "publish-dotnet",
+      "command": "dotnet",
+      "type": "process",
+      "args": [
+        "publish",
+        "${workspaceFolder}/remix-dotnet-signalr-starter/dotnet-signalr/DotnetSignalR.csproj",
+        "/property:GenerateFullPaths=true",
+        "/consoleloggerparameters:NoSummary"
+      ],
+      "group": "build",
+      "presentation": {
+        "reveal": "silent"
+      },
+      "problemMatcher": "$msCompile"
+    },
+    {
+      "label": "watch-dotnet",
+      "command": "dotnet",
+      "type": "process",
+      "args": [
+        "watch",
+        "run",
+        "--project",
+        "${workspaceFolder}/remix-dotnet-signalr-starter/dotnet-signalr/DotnetSignalR.csproj"
+      ],
+      "group": "build",
+      "presentation": {
+        "reveal": "always"
+      },
+      "isBackground": true,
+      "problemMatcher": "$msCompile"
+    }
+  ]
+}

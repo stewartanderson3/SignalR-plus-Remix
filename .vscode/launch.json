@@ -1,0 +1,75 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": ".NET SignalR API",
+      "type": "coreclr",
+      "request": "launch",
+      "program": "dotnet",
+      "args": ["run", "--project", "${workspaceFolder}/remix-dotnet-signalr-starter/dotnet-signalr/DotnetSignalR.csproj"],
+      "cwd": "${workspaceFolder}/remix-dotnet-signalr-starter/dotnet-signalr",
+      "console": "integratedTerminal",
+      "stopAtEntry": false,
+      "env": {
+        "ASPNETCORE_ENVIRONMENT": "Development"
+      }
+    },
+    {
+      "name": ".NET SignalR API (Debug)",
+      "type": "coreclr", 
+      "request": "launch",
+      "program": "${workspaceFolder}/remix-dotnet-signalr-starter/dotnet-signalr/bin/Debug/net9.0/DotnetSignalR.dll",
+      "args": [],
+      "cwd": "${workspaceFolder}/remix-dotnet-signalr-starter/dotnet-signalr",
+      "console": "internalConsole",
+      "stopAtEntry": false,
+      "env": {
+        "ASPNETCORE_ENVIRONMENT": "Development"
+      },
+      "sourceFileMap": {
+        "/Views": "${workspaceFolder}/Views"
+      },
+      "preLaunchTask": "build-dotnet"
+    },
+    {
+      "name": "Remix App",
+      "type": "node",
+      "request": "launch",
+      "cwd": "${workspaceFolder}/remix-dotnet-signalr-starter/remix-app",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev"],
+      "console": "integratedTerminal",
+      "serverReadyAction": {
+        "action": "openExternally",
+        "pattern": "Local:\\s+(https?://\\S+)",
+        "uriFormat": "%s"
+      },
+      "env": {
+        "NODE_ENV": "development"
+      },
+      "skipFiles": ["<node_internals>/**"]
+    }
+  ],
+  "compounds": [
+    {
+      "name": "Launch Both Apps",
+      "configurations": [".NET SignalR API", "Remix App"],
+      "stopAll": true,
+      "presentation": {
+        "hidden": false,
+        "group": "",
+        "order": 1
+      }
+    },
+    {
+      "name": "Launch Both Apps (Debug)",
+      "configurations": [".NET SignalR API (Debug)", "Remix App"],
+      "stopAll": true,
+      "presentation": {
+        "hidden": false,
+        "group": "",
+        "order": 2
+      }
+    }
+  ]
+}
