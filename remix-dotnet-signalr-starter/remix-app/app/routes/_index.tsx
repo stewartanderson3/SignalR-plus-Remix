@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { json, type LoaderFunctionArgs } from "@remix-run/node";
+import { type LoaderFunctionArgs } from "@remix-run/node";
 import { useLoaderData } from "@remix-run/react";
 import * as signalR from "@microsoft/signalr";
 
@@ -8,10 +8,10 @@ export async function loader({ request }: LoaderFunctionArgs) {
   const randomNumber = Math.floor(Math.random() * 1000) + 1;
   const serverTimestamp = new Date().toISOString();
   
-  return json({
+  return {
     randomNumber,
     serverTimestamp,
-  });
+  };
 }
 
 export default function Index() {
