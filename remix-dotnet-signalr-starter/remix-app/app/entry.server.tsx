@@ -1,6 +1,6 @@
 import { PassThrough } from "node:stream";
-import type { AppLoadContext, EntryContext } from "@remix-run/node";
-import { RemixServer } from "@remix-run/react";
+import type { AppLoadContext, EntryContext } from "react-router";
+import { ServerRouter } from "react-router";
 import { isbot } from "isbot";
 import { renderToPipeableStream } from "react-dom/server";
 
@@ -10,7 +10,7 @@ export default function handleRequest(
   request: Request,
   responseStatusCode: number,
   responseHeaders: Headers,
-  remixContext: EntryContext,
+  routerContext: EntryContext,
   _loadContext: AppLoadContext
 ) {
   const callbackName = isbot(request.headers.get("user-agent") || "")
@@ -21,7 +21,7 @@ export default function handleRequest(
     const didAbort = new AbortController();
 
     const { pipe, abort } = renderToPipeableStream(
-      <RemixServer context={remixContext} url={request.url} />,
+      <ServerRouter context={routerContext} url={request.url} />,
       {
         [callbackName]: () => {
           const body = new PassThrough();

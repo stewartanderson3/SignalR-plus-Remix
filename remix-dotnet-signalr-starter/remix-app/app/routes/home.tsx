@@ -1,9 +1,8 @@
 import { useEffect, useState, useRef } from "react";
-import { type LoaderFunctionArgs } from "react-router";
 import { useLoaderData } from "react-router-dom";
 import * as signalR from "@microsoft/signalr";
 
-export async function loader({ request }: LoaderFunctionArgs) {
+export async function loader() {
   // Generate a random number server-side (simulating a database query)
   const randomNumber = Math.floor(Math.random() * 1000) + 1;
   const serverTimestamp = new Date().toISOString();
@@ -14,7 +13,7 @@ export async function loader({ request }: LoaderFunctionArgs) {
   };
 }
 
-export default function Index() {
+export default function Home() {
   const { randomNumber, serverTimestamp } = useLoaderData<typeof loader>();
   const [messages, setMessages] = useState<string[]>([]);
   const [status, setStatus] = useState("disconnected");

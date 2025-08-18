@@ -1,6 +1,6 @@
-# Remix + .NET + SignalR Starter
+# React Router + .NET + SignalR Starter
 
-Single-origin dev setup where **Remix (Vite)** proxies to **.NET 8 + SignalR**.
+Single-origin dev setup where **React Router v7 (Vite)** proxies to **.NET 8 + SignalR**.
 - One browser port (5173) in dev.
 - WebSocket upgrades proxied for SignalR (`/chathub`).
 - Simple chat demo wired end-to-end.
@@ -23,7 +23,7 @@ cd ../dotnet-signalr
 dotnet run --urls=http://localhost:5000
 ```
 
-### 3) Run Remix dev (proxied)
+### 3) Run React Router dev (proxied)
 ```bash
 cd ../remix-app
 npm run dev
@@ -33,12 +33,12 @@ Open http://localhost:5173 — send a message and see it broadcast via SignalR.
 
 ## How it works
 - `vite.config.ts` proxies `/api` and `/chathub` to `http://localhost:5000` with `ws: true` for WebSockets.
-- Remix page connects to SignalR with a relative URL (`/chathub`) so you avoid CORS and extra ports in the browser.
+- React Router page connects to SignalR with a relative URL (`/chathub`) so you avoid CORS and extra ports in the browser.
 
 ## Production sketch
 Terminate TLS once and route by path (Nginx/YARP/Caddy):
 - `^/chathub` and `^/api` → .NET app
-- everything else → Remix server (or static if you deploy Remix to a Node host)
+- everything else → React Router server (or static if you deploy React Router to a Node host)
 
 ### Nginx snippet
 ```nginx

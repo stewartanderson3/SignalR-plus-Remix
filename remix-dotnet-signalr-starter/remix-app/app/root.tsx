@@ -1,9 +1,15 @@
-import { Links, Meta, Outlet, Scripts, ScrollRestoration } from "@remix-run/react";
+import { 
+  Links, 
+  Meta, 
+  Outlet, 
+  Scripts, 
+  ScrollRestoration 
+} from "react-router";
 
 export function meta() {
   return [
     { charSet: "utf-8" },
-    { title: "Remix + .NET + SignalR Starter" },
+    { title: "React Router + .NET + SignalR Starter" },
     { name: "viewport", content: "width=device-width,initial-scale=1" }
   ];
 }

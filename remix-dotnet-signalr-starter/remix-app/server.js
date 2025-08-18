@@ -1,5 +1,5 @@
-import { createRequestHandler } from "@remix-run/express";
-import { broadcastDevReady } from "@remix-run/node";
+import { createRequestHandler } from "react-router";
+import { broadcastDevReady } from "react-router";
 import express from "express";
 import { createProxyMiddleware } from "http-proxy-middleware";
 
@@ -44,7 +44,7 @@ app.use(
 const build = viteDevServer
   ? () =>
       viteDevServer.ssrLoadModule(
-        "virtual:remix/server-build"
+        "virtual:react-router/server-build"
       )
   : await import("./build/server/index.js");
 

@@ -1,9 +1,9 @@
 import { defineConfig } from "vite";
 import tsconfigPaths from "vite-tsconfig-paths";
-import { vitePlugin as remix } from "@remix-run/dev";
+import { reactRouter } from "@react-router/dev/vite";
 
 export default defineConfig({
-  plugins: [remix(), tsconfigPaths()],
+  plugins: [reactRouter(), tsconfigPaths()],
   server: {
     port: 5173,
     proxy: {
