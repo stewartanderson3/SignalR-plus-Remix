@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { type LoaderFunctionArgs } from "@remix-run/node";
 import { useLoaderData } from "@remix-run/react";
 import * as signalR from "@microsoft/signalr";
@@ -18,7 +18,7 @@ export default function Index() {
   const { randomNumber, serverTimestamp } = useLoaderData<typeof loader>();
   const [messages, setMessages] = useState<string[]>([]);
   const [status, setStatus] = useState("disconnected");
-  const [connection, setConnection] = useState<signalR.HubConnection | null>(null);
+  const connectionRef = useRef<signalR.HubConnection | null>(null);
   const [input, setInput] = useState("");
 
   useEffect(() => {
@@ -39,13 +39,13 @@ export default function Index() {
       .then(() => setStatus("connected"))
       .catch(err => setStatus("error: " + String(err)));
 
-    setConnection(conn);
+    connectionRef.current = conn;
     return () => { conn.stop(); };
   }, []);
 
   const send = async () => {
-    if (!connection) return;
-    await connection.invoke("SendMessage", "RemixUser", input);
+    if (!connectionRef.current) return;
+    await connectionRef.current.invoke("SendMessage", "RemixUser", input);
     setInput("");
   };
 
@@ -67,7 +67,7 @@ export default function Index() {
           onChange={(e) => setInput(e.target.value)}
           placeholder="Type a message"
         />
-        <button onClick={send} disabled={!connection || !input}>Send</button>
+        <button onClick={send} disabled={!connectionRef.current || !input}>Send</button>
       </div>
 
       <ul>
