@@ -22,9 +22,12 @@ export default function Index() {
   const [input, setInput] = useState("");
 
   useEffect(() => {
+    let cancelled = false;
+    let starting = false; // prevent overlapping retry loops
+
     const conn = new signalR.HubConnectionBuilder()
       .withUrl("/chathub") // proxied to .NET in dev
-      .withAutomaticReconnect()
+      .withAutomaticReconnect() // handles drops after initial start
       .build();
 
     conn.on("ReceiveMessage", (user: string, message: string) => {
@@ -33,14 +36,42 @@ export default function Index() {
 
     conn.onreconnecting(() => setStatus("reconnecting"));
     conn.onreconnected(() => setStatus("connected"));
-    conn.onclose(() => setStatus("disconnected"));
+    conn.onclose(() => {
+      if (cancelled) return;
+      setStatus("disconnected");
+      // If automatic reconnect ultimately gives up, try manual retry loop again
+      void startWithRetry();
+    });
 
-    conn.start()
-      .then(() => setStatus("connected"))
-      .catch(err => setStatus("error: " + String(err)));
+    const delay = (ms: number) => new Promise((res) => setTimeout(res, ms));
+
+    const startWithRetry = async () => {
+      if (starting || cancelled) return;
+      starting = true;
+      try {
+        while (!cancelled && conn.state !== signalR.HubConnectionState.Connected) {
+          try {
+            setStatus("connecting");
+            await conn.start();
+            setStatus("connected");
+            break;
+          } catch (err) {
+            setStatus("retrying in 2s");
+            await delay(2000);
+          }
+        }
+      } finally {
+        starting = false;
+      }
+    };
+
+    void startWithRetry();
 
     connectionRef.current = conn;
-    return () => { conn.stop(); };
+    return () => {
+      cancelled = true;
+      conn.stop();
+    };
   }, []);
 
   const send = async () => {
