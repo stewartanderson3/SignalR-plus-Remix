@@ -16,12 +16,18 @@ type Pages = {
   "/api/health": {
     params: {};
   };
+  "/live-comm": {
+    params: {};
+  };
+  "/charting-poc": {
+    params: {};
+  };
 };
 
 type RouteFiles = {
   "root.tsx": {
     id: "root";
-    page: "/" | "/api/health";
+    page: "/" | "/api/health" | "/live-comm" | "/charting-poc";
   };
   "routes/_index.tsx": {
     id: "routes/_index";
@@ -30,5 +36,13 @@ type RouteFiles = {
   "routes/api.health.ts": {
     id: "routes/api.health";
     page: "/api/health";
+  };
+  "routes/live-comm.tsx": {
+    id: "routes/live-comm";
+    page: "/live-comm";
+  };
+  "routes/charting-poc.tsx": {
+    id: "routes/charting-poc";
+    page: "/charting-poc";
   };
 };
