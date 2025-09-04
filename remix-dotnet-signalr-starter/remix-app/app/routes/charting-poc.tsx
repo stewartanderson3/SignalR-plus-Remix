@@ -36,7 +36,7 @@ export default function ChartingPOC() {
       <p>Mid-span lines (don&apos;t touch edges) and a deliberate gap using a null y value.</p>
       <div style={{ width: '100%', height: 360, maxWidth: 860, border: '1px solid #e5e7eb', borderRadius: 8, padding: 8, background: '#ffffff' }}>
         <ResponsiveContainer>
-          <LineChart data={mergedForAxis} margin={{ top: 12, right: 32, bottom: 16, left: 8 }}>
+          <LineChart data={mergedForAxis}>
             <CartesianGrid strokeDasharray="3 3" />
             <XAxis dataKey="x" type="number" domain={xDomain} tick={{ fontSize: 12 }} />
             <YAxis type="number" domain={['auto', 'auto']} tick={{ fontSize: 12 }} />
