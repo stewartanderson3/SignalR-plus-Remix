@@ -79,7 +79,7 @@ export default function LiveComm() {
       <h1>Live Communication</h1>
       <p style={{ marginTop: -8 }}><small>React Router + .NET + SignalR</small></p>
       <p><a href="/">Back to landing</a></p>
-      <div style={{ background: "#f0f8ff", padding: 16, marginBottom: 16, borderRadius: 8 }}>
+      <div style={{ padding: 16, marginBottom: 16, borderRadius: 8 }}>
         <h3>Server-side Data:</h3>
         <p><strong>Random Number:</strong> {randomNumber}</p>
         <p><strong>Generated at:</strong> {new Date(serverTimestamp).toLocaleString()}</p>

@@ -93,6 +93,9 @@ function Steps(): JSX.Element {
   return (
     <div className="flex flex-col gap-md">
       <div className="card" style={{padding: '1.25rem 1.25rem 1rem'}}>
+        {stepState?.isLoading && (
+          <div className="loading-indicator loading-indicator--floating" aria-live="polite">Saving…</div>
+        )}
         <div className="flex space-between align-center">
           <div style={{display:'flex', flexDirection:'column', gap:'.5rem', flex:1}}>
             <div className="stepper" role="tablist" aria-label="Wizard Steps">
@@ -119,9 +122,6 @@ function Steps(): JSX.Element {
               Step {currentIndex + 1} of {stepOrder.length} ({activeStepName})
             </div>
           </div>
-          {stepState?.isLoading && (
-            <div className="loading-indicator" aria-live="polite">Saving…</div>
-          )}
         </div>
         <div className="flex gap-sm mt-sm" role="group" aria-label="Primary navigation actions">
           <button
