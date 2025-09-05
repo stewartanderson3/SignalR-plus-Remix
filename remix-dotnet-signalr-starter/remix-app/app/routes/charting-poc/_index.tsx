@@ -1,10 +1,6 @@
 import React from "react";
 import { ContactForm, AddressForm } from "../../forms/Form";
-import {
-  ActiveStepContextProvider,
-  useActiveStep,
-  useStepIteration,
-} from "../../steps";
+import { ActiveStepContextProvider, useActiveStep, useStepIteration } from "../../steps";
 
 const errorHandled = (action: () => Promise<void>) => async (): Promise<void> => {
   try {
@@ -20,7 +16,11 @@ interface UselessStepProps {
 }
 
 const UselessStep: React.FC<UselessStepProps> = ({ name }) => (
-  <h1>Useless Step: {name}</h1>
+  <div className="card" data-testid={`useless-step-${name}`}>
+    <div className="card-header">Informational Step</div>
+    <p className="text-muted" style={{marginTop:0}}>This is a placeholder ("{name}") to simulate optional workflow content.</p>
+    <p className="step-meta">You can reorder or skip steps using the controls below.</p>
+  </div>
 );
 
 const stepOrderOne = [
@@ -50,9 +50,19 @@ function Steps(): JSX.Element {
   const { stepApi, stepState } = useActiveStep<StepStateMeta, StepApi>();
 
   const steps: Record<StepName, JSX.Element> = {
-    contact: <ContactForm />,
+    contact: (
+      <div className="card">
+        <div className="card-header">Contact Information</div>
+        <ContactForm />
+      </div>
+    ),
     uselessOne: <UselessStep name="one" />,
-    address: <AddressForm />,
+    address: (
+      <div className="card">
+        <div className="card-header">Address Details</div>
+        <AddressForm />
+      </div>
+    ),
     uselessTwo: <UselessStep name="two" />,
     uselessThree: <UselessStep name="three" />,
   };
@@ -77,70 +87,83 @@ function Steps(): JSX.Element {
     setStepOrder((order) => (order === stepOrderOne ? stepOrderTwo : stepOrderOne));
   };
 
+  const currentIndex = stepOrder.findIndex((s) => s === activeStepName);
+  const progress = ((currentIndex + 1) / stepOrder.length) * 100;
+
   return (
-    <>
-      <div>{activeStep}</div>
-      <div>
-        <button
-          className="btn btn-primary ml-3"
-          onClick={errorHandled(back)}
-          disabled={stepState?.isLoading || isFirstStep}
-        >
-          Back
-        </button>
-        {stepState?.isSkippable && (
+    <div className="flex flex-col gap-md">
+      <div className="card" style={{padding: '1.25rem 1.25rem 1rem'}}>
+        <div className="flex space-between align-center">
+          <div style={{display:'flex', flexDirection:'column', gap:'.5rem', flex:1}}>
+            <div className="stepper" role="tablist" aria-label="Wizard Steps">
+              {stepOrder.map((stepName, i) => (
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={activeStepName === stepName}
+                  aria-controls={`step-panel-${stepName}`}
+                  key={stepName}
+                  data-index={i + 1}
+                  data-active={activeStepName === stepName}
+                  className="step-pill"
+                  onClick={errorHandled(() => goTo({ stepName, skipGoToHandler }))}
+                >
+                  {stepName}
+                </button>
+              ))}
+            </div>
+            <div className="progress" aria-label="Progress">
+              <div className="progress-bar" style={{ width: `${progress}%` }} />
+            </div>
+            <div className="step-meta">
+              Step {currentIndex + 1} of {stepOrder.length} ({activeStepName})
+            </div>
+          </div>
+          {stepState?.isLoading && (
+            <div className="loading-indicator" aria-live="polite">Saving…</div>
+          )}
+        </div>
+        <div className="flex gap-sm mt-sm" role="group" aria-label="Primary navigation actions">
           <button
-            className="btn btn-secondary ml-2"
-            onClick={errorHandled(skip)}
+            className="btn btn-secondary"
+            onClick={errorHandled(back)}
+            disabled={stepState?.isLoading || isFirstStep}
+          >
+            Back
+          </button>
+          {stepState?.isSkippable && (
+            <button
+              className="btn btn-link"
+              onClick={errorHandled(skip)}
+              disabled={stepState?.isLoading || isLastStep}
+            >
+              Skip
+            </button>
+          )}
+          <button
+            className="btn btn-primary"
+            onClick={errorHandled(next)}
             disabled={stepState?.isLoading || isLastStep}
           >
-            Skip
+            {isLastStep ? 'Finish' : 'Next'}
           </button>
-        )}
-        <button
-          className="btn btn-primary ml-2"
-          onClick={errorHandled(next)}
-          disabled={stepState?.isLoading || isLastStep}
-        >
-          Next
-        </button>
-        {stepState?.isLoading && <strong className="ml-2">Loading...</strong>}
-      </div>
-      <div>
-        <button className="btn btn-primary ml-3 mt-3" onClick={toggleStepOrder}>
-          Using Step Order: {stepOrder === stepOrderOne ? "One" : "Two"}
-        </button>
-      </div>
-      <div className="ml-3 mt-3">
-        <strong>Step Order</strong>
-        <p>
-          <label>
+          <div style={{flex:1}} />
+          <button className="btn" onClick={toggleStepOrder} type="button">
+            Order: {stepOrder === stepOrderOne ? "One" : "Two"}
+          </button>
+          <label style={{display:'flex', alignItems:'center', gap:'.35rem', fontSize:'.7rem'}}>
             <input
               type="checkbox"
-              onChange={() =>
-                setSkipGoToHandler((skipGoToHandler) => !skipGoToHandler)
-              }
-            />{" "}
-            Skip GoTo Handler
+              onChange={() => setSkipGoToHandler((skipGoToHandler) => !skipGoToHandler)}
+              checked={skipGoToHandler}
+            />
+            <span className="text-muted">Skip GoTo submit</span>
           </label>
-        </p>
-        <p>
-          {stepOrder.map((stepName) => (
-            <button
-              key={stepName}
-              className="btn btn-link"
-              onClick={errorHandled(() => goTo({ stepName, skipGoToHandler }))}
-            >
-              {activeStepName === stepName ? (
-                <strong>{stepName}</strong>
-              ) : (
-                stepName
-              )}
-            </button>
-          ))}
-        </p>
+        </div>
       </div>
-    </>
+
+      <div id={`step-panel-${activeStepName}`}>{activeStep}</div>
+    </div>
   );
 }
 

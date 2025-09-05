@@ -5,6 +5,7 @@ import {
   Scripts, 
   ScrollRestoration 
 } from "react-router";
+import "./styles.css"; // global styles
 
 export function meta() {
   return [
@@ -22,7 +23,9 @@ export default function App() {
         <Links />
       </head>
       <body>
-        <Outlet />
+        <div className="app-shell">
+          <Outlet />
+        </div>
         <ScrollRestoration />
         <Scripts />
       </body>
