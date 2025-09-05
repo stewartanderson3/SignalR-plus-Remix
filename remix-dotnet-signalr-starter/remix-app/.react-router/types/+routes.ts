@@ -37,12 +37,12 @@ type RouteFiles = {
     id: "routes/api.health";
     page: "/api/health";
   };
-  "routes/live-comm.tsx": {
-    id: "routes/live-comm";
+  "routes/live-comm/_index.tsx": {
+    id: "routes/live-comm/_index";
     page: "/live-comm";
   };
-  "routes/charting-poc.tsx": {
-    id: "routes/charting-poc";
+  "routes/charting-poc/_index.tsx": {
+    id: "routes/charting-poc/_index";
     page: "/charting-poc";
   };
 };

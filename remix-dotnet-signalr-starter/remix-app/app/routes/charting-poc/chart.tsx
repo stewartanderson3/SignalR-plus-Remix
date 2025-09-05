@@ -1,22 +1,16 @@
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import React from 'react';
 
-// Demonstrate:
-// 1. Lines that start/end away from the left/right domain edges (mid-span rendering)
-// 2. A gap in a line created with a null y (break in the path)
-
-// Series A spans x = 20 -> 80 and includes a gap (null) between x=50 (null) which splits the polyline.
 const seriesA = [
   { x: 20, y: 12 },
   { x: 30, y: 18 },
   { x: 40, y: 15 },
-  { x: null, y: null }, // null breaks the line (no segment across this point)
+  { x: null, y: null },
   { x: 60, y: 19 },
   { x: 70, y: 14 },
   { x: 80, y: 22 },
 ];
 
-// Series B spans x = 10 -> 60, no gap.
 const seriesB = [
   { x: 10, y: 28 },
   { x: 25, y: 32 },
@@ -25,7 +19,6 @@ const seriesB = [
   { x: 60, y: 31 },
 ];
 
-// Axis domain intentionally larger than either series' min/max so lines float with left/right padding.
 const xDomain: [number, number] = [0, 100];
 const mergedForAxis = [...seriesA, ...seriesB];
 
@@ -52,7 +45,7 @@ export default function ChartingPOC() {
               dot={{ r: 5, stroke: '#2563eb', strokeWidth: 2, fill: '#ffffff' }}
               activeDot={{ r: 7 }}
               isAnimationActive={false}
-              connectNulls={false} // ensures the null produces a visible gap
+              connectNulls={false}
             />
             <Line
               name="Series B (shorter span)"

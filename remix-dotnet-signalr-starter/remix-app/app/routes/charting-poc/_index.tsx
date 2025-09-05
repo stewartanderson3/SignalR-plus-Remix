@@ -1,74 +1,115 @@
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
-import React from 'react';
+import React, { useState } from 'react';
+import { Leaf, useValidationModel } from 'leaf-validator';
 
-const seriesA = [
-  { x: 20, y: 12 },
-  { x: 30, y: 18 },
-  { x: 40, y: 15 },
-  { x: null, y: null },
-  { x: 60, y: 19 },
-  { x: 70, y: 14 },
-  { x: 80, y: 22 },
-];
+// Simple numeric validators
+const isRequired = (value: number | string) => (value === undefined || value === null || value === '' ? ['Required'] : undefined);
+const isPositiveNumber = (value: any) => {
+  if (value === undefined || value === null || value === '') return undefined; // required handled separately
+  const num = Number(value);
+  return isNaN(num) || num < 0 ? ['Must be a positive number'] : undefined;
+};
 
-const seriesB = [
-  { x: 10, y: 28 },
-  { x: 25, y: 32 },
-  { x: 45, y: 30 },
-  { x: 55, y: 35 },
-  { x: 60, y: 31 },
-];
+// Model shape we'll build up on changes
+// { investment: { initialAmount: number, meanAnnualReturn: number } }
+export default function Roth401kForm() {
+  const [model, setModel] = useState<any>({});
+  const validationModel = useValidationModel();
+  const [forceShowErrors, setForceShowErrors] = useState(false);
 
-const xDomain: [number, number] = [0, 100];
-const mergedForAxis = [...seriesA, ...seriesB];
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    setForceShowErrors(true);
 
-export default function ChartingPOC() {
+    const allErrors = validationModel.getAllErrorsForLocation('investment') || [];
+    if (allErrors.length > 0) {
+      // eslint-disable-next-line no-console
+      console.warn('Validation errors present, calculation aborted.', allErrors);
+      return;
+    }
+    // eslint-disable-next-line no-console
+    console.log('Calculate with model:', model);
+  };
+
   return (
-    <main style={{ fontFamily: 'system-ui, sans-serif', lineHeight: 1.5, padding: 24 }}>
-      <h1>Charting POC</h1>
-      <p>Mid-span lines (don&apos;t touch edges) and a deliberate gap using a null y value.</p>
-      <div style={{ width: '100%', height: 360, maxWidth: 860, border: '1px solid #e5e7eb', borderRadius: 8, padding: 8, background: '#ffffff' }}>
-        <ResponsiveContainer>
-          <LineChart data={mergedForAxis}>
-            <CartesianGrid strokeDasharray="3 3" />
-            <XAxis dataKey="x" type="number" domain={xDomain} tick={{ fontSize: 12 }} />
-            <YAxis type="number" domain={['auto', 'auto']} tick={{ fontSize: 12 }} />
-            <Tooltip />
-            <Legend />
-            <Line
-              name="Series A (gap & mid-span)"
-              data={seriesA}
-              dataKey="y"
-              type="monotone"
-              stroke="#2563eb"
-              strokeWidth={3}
-              dot={{ r: 5, stroke: '#2563eb', strokeWidth: 2, fill: '#ffffff' }}
-              activeDot={{ r: 7 }}
-              isAnimationActive={false}
-              connectNulls={false}
-            />
-            <Line
-              name="Series B (shorter span)"
-              data={seriesB}
-              dataKey="y"
-              type="monotone"
-              stroke="#dc2626"
-              strokeDasharray="5 4"
-              strokeWidth={2}
-              dot={{ r: 4, stroke: '#dc2626', strokeWidth: 2, fill: '#ffffff' }}
-              activeDot={{ r: 6 }}
-              isAnimationActive={false}
-            />
-          </LineChart>
-        </ResponsiveContainer>
-      </div>
-      <ul style={{ fontSize: 14, marginTop: 12, color: '#374151' }}>
-        <li>Domain set to [0,100]; Series A only occupies 20-80, Series B 10-60.</li>
-        <li>Series A gap created by a null y at x=50 (no connecting segment).</li>
-        <li>To pad automatically you could use domain={[`dataMin - 10`, `dataMax + 10`]} instead of a fixed array.</li>
-        <li>Each <code>Line</code> gets its own <code>data</code>; the chart-level <code>data</code> only informs scales.</li>
-      </ul>
-      <p style={{ marginTop: 16 }}><a href="/">Back to landing</a></p>
-    </main>
+    <section style={{ marginTop: 24, maxWidth: 560 }}>
+      <h2 style={{ margin: '0 0 16px' }}>Roth/401k Investment</h2>
+      <form
+        onSubmit={handleSubmit}
+        noValidate
+        style={{ display: 'flex', flexDirection: 'column', gap: 20 }}
+      >
+        {/* Initial Investment Amount */}
+        <Leaf
+          model={model}
+          onChange={setModel}
+          validationModel={validationModel}
+          location="investment.initialAmount"
+          validators={[isRequired, isPositiveNumber]}
+          showErrors={forceShowErrors}
+        >
+          {(value: any, setValue: (v: any) => void, showErrors: () => void, errors: string[]) => (
+            <div style={{ display: 'flex', flexDirection: 'column' }}>
+              <label style={{ fontWeight: 600, marginBottom: 4 }} htmlFor="initialAmount">Initial Investment Amount</label>
+              <input
+                id="initialAmount"
+                type="number"
+                inputMode="decimal"
+                value={value ?? ''}
+                onChange={(e) => setValue(e.target.value === '' ? '' : Number(e.target.value))}
+                onBlur={showErrors}
+                placeholder="e.g. 10000"
+                style={{ padding: '8px 10px', border: '1px solid #ccc', borderRadius: 6 }}
+              />
+              {errors?.length > 0 && (
+                <ul style={{ color: '#b91c1c', margin: '4px 0 0', paddingLeft: 18, fontSize: 13 }}>
+                  {errors.map((err, i) => (
+                    <li key={i}>{err}</li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          )}
+        </Leaf>
+
+        {/* Mean annual rate of return */}
+        <Leaf
+          model={model}
+          onChange={setModel}
+          validationModel={validationModel}
+          location="investment.meanAnnualReturn"
+          validators={[isRequired, isPositiveNumber]}
+          showErrors={forceShowErrors}
+        >
+          {(value: any, setValue: (v: any) => void, showErrors: () => void, errors: string[]) => (
+            <div style={{ display: 'flex', flexDirection: 'column' }}>
+              <label style={{ fontWeight: 600, marginBottom: 4 }} htmlFor="meanAnnualReturn">Mean annual rate of return (%)</label>
+              <input
+                id="meanAnnualReturn"
+                type="number"
+                inputMode="decimal"
+                step="0.01"
+                value={value ?? ''}
+                onChange={(e) => setValue(e.target.value === '' ? '' : Number(e.target.value))}
+                onBlur={showErrors}
+                placeholder="e.g. 7"
+                style={{ padding: '8px 10px', border: '1px solid #ccc', borderRadius: 6 }}
+              />
+              {errors?.length > 0 && (
+                <ul style={{ color: '#b91c1c', margin: '4px 0 0', paddingLeft: 18, fontSize: 13 }}>
+                  {errors.map((err, i) => (
+                    <li key={i}>{err}</li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          )}
+        </Leaf>
+
+        <div>
+          <button type="submit" style={{ background: '#2563eb', color: '#fff', border: 'none', padding: '10px 18px', borderRadius: 6, cursor: 'pointer', fontWeight: 600 }}>Calculate</button>
+        </div>
+        <pre style={{ background: '#f9fafb', padding: 12, border: '1px solid #e5e7eb', borderRadius: 6, fontSize: 12, maxHeight: 160, overflow: 'auto' }}>{JSON.stringify(model, null, 2)}</pre>
+      </form>
+    </section>
   );
 }
