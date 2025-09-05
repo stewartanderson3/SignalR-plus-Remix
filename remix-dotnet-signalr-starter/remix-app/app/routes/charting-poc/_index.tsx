@@ -167,12 +167,10 @@ function Steps(): JSX.Element {
   );
 }
 
-const ManagedActiveStepProvider = ActiveStepContextProvider as unknown as React.FC<React.PropsWithChildren>;
-
 export default function App(): JSX.Element {
   return (
-    <ManagedActiveStepProvider>
+    <ActiveStepContextProvider>
       <Steps />
-    </ManagedActiveStepProvider>
+    </ActiveStepContextProvider>
   );
 }

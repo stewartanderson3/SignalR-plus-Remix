@@ -7,7 +7,7 @@ export interface StepContextValue<State = unknown, Api = unknown> {
   setStepState: Dispatch<SetStateAction<State | null>>;
 }
 
-export const [ActiveStepContextProvider, useRawActiveStep] = createManagedContext<StepContextValue, unknown>(
+const [BaseActiveStepContextProvider, useRawActiveStep] = createManagedContext<StepContextValue, unknown>(
   () => {
     const stepApi = useRef<unknown | null>(null);
     const [stepState, setStepState] = useState<unknown | null>(null);
@@ -19,6 +19,12 @@ export const [ActiveStepContextProvider, useRawActiveStep] = createManagedContex
     } as StepContextValue;
   }
 );
+
+type ProviderProps = React.ComponentProps<typeof BaseActiveStepContextProvider>;
+type OptionalProvider = React.FC<Partial<ProviderProps>>;
+
+export const ActiveStepContextProvider = BaseActiveStepContextProvider as unknown as OptionalProvider;
+export { useRawActiveStep };
 
 export const useActiveStep = <State = unknown, Api = unknown>(): StepContextValue<State, Api> =>
   useRawActiveStep() as StepContextValue<State, Api>;
