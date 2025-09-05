@@ -1,117 +1,155 @@
-import React, { useState } from 'react';
-import { Leaf, useValidationModel } from 'leaf-validator';
+import React from "react";
+import { ContactForm, AddressForm } from "../../forms/Form";
+import {
+  ActiveStepContextProvider,
+  useActiveStep,
+  useStepIteration,
+} from "../../steps";
 
-// Simple numeric validators
-const isRequired = (value: number | string) => (value === undefined || value === null || value === '' ? ['Required'] : undefined);
-const isPositiveNumber = (value: any) => {
-  if (value === undefined || value === null || value === '') return undefined; // required handled separately
-  const num = Number(value);
-  return isNaN(num) || num < 0 ? ['Must be a positive number'] : undefined;
+const errorHandled = (action: () => Promise<void>) => async (): Promise<void> => {
+  try {
+    await action();
+  } catch (error) {
+    // eslint-disable-next-line no-console
+    console.warn(error);
+  }
 };
 
-// Model shape we'll build up on changes
-// { investment: { initialAmount: number, meanAnnualReturn: number } }
-export default function Roth401kForm() {
-  const [model, setModel] = useState<any>({});
-  const validationModel = useValidationModel();
-  const [forceShowErrors, setForceShowErrors] = useState(false);
+interface UselessStepProps {
+  name: string;
+}
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    setForceShowErrors(true);
+const UselessStep: React.FC<UselessStepProps> = ({ name }) => (
+  <h1>Useless Step: {name}</h1>
+);
 
-    const allErrors = validationModel.getAllErrorsForLocation('investment') || [];
-    if (allErrors.length > 0) {
-      // eslint-disable-next-line no-console
-      console.warn('Validation errors present, calculation aborted.', allErrors);
-      return;
-    }
-    // eslint-disable-next-line no-console
-    console.log('Calculate with model:', model);
+const stepOrderOne = [
+  "contact",
+  "uselessOne",
+  "address",
+  "uselessTwo",
+  "uselessThree",
+] as const;
+const stepOrderTwo = ["contact", "uselessTwo", "uselessThree"] as const;
+
+type StepName = typeof stepOrderOne[number];
+type StepOrder = readonly StepName[];
+
+interface StepStateMeta {
+  isLoading: boolean;
+  isSkippable: boolean;
+}
+
+interface StepApi {
+  submit?: () => Promise<void>;
+}
+
+function Steps(): JSX.Element {
+  const [stepOrder, setStepOrder] = React.useState<StepOrder>(stepOrderOne);
+  const [skipGoToHandler, setSkipGoToHandler] = React.useState<boolean>(false);
+  const { stepApi, stepState } = useActiveStep<StepStateMeta, StepApi>();
+
+  const steps: Record<StepName, JSX.Element> = {
+    contact: <ContactForm />,
+    uselessOne: <UselessStep name="one" />,
+    address: <AddressForm />,
+    uselessTwo: <UselessStep name="two" />,
+    uselessThree: <UselessStep name="three" />,
+  };
+
+  const {
+    activeStep,
+    activeStepName,
+    next,
+    back,
+    skip,
+    goTo,
+    isFirstStep,
+    isLastStep,
+  } = useStepIteration({
+    steps,
+    order: stepOrder as StepName[],
+    onNext: () => stepApi.current?.submit?.(),
+  onGoTo: () => stepApi.current?.submit?.(),
+  });
+
+  const toggleStepOrder = (): void => {
+    setStepOrder((order) => (order === stepOrderOne ? stepOrderTwo : stepOrderOne));
   };
 
   return (
-    <main style={{ fontFamily: "system-ui, sans-serif", lineHeight: "1.6", padding: 24 }}>
-      <section style={{ marginTop: 24, maxWidth: 560 }}>
-        <h2 style={{ margin: '0 0 16px' }}>Roth/401k Investment</h2>
-        <form
-          onSubmit={handleSubmit}
-          noValidate
-          style={{ display: 'flex', flexDirection: 'column', gap: 20 }}
+    <>
+      <div>{activeStep}</div>
+      <div>
+        <button
+          className="btn btn-primary ml-3"
+          onClick={errorHandled(back)}
+          disabled={stepState?.isLoading || isFirstStep}
         >
-          {/* Initial Investment Amount */}
-          <Leaf
-            model={model}
-            onChange={setModel}
-            validationModel={validationModel}
-            location="investment.initialAmount"
-            validators={[isRequired, isPositiveNumber]}
-            showErrors={forceShowErrors}
+          Back
+        </button>
+        {stepState?.isSkippable && (
+          <button
+            className="btn btn-secondary ml-2"
+            onClick={errorHandled(skip)}
+            disabled={stepState?.isLoading || isLastStep}
           >
-            {(value: any, setValue: (v: any) => void, showErrors: () => void, errors: string[]) => (
-              <div style={{ display: 'flex', flexDirection: 'column' }}>
-                <label style={{ fontWeight: 600, marginBottom: 4 }} htmlFor="initialAmount">Initial Investment Amount</label>
-                <input
-                  id="initialAmount"
-                  type="number"
-                  inputMode="decimal"
-                  value={value ?? ''}
-                  onChange={(e) => setValue(e.target.value === '' ? '' : Number(e.target.value))}
-                  onBlur={showErrors}
-                  placeholder="e.g. 10000"
-                  style={{ padding: '8px 10px', border: '1px solid #ccc', borderRadius: 6 }}
-                />
-                {errors?.length > 0 && (
-                  <ul style={{ color: '#b91c1c', margin: '4px 0 0', paddingLeft: 18, fontSize: 13 }}>
-                    {errors.map((err, i) => (
-                      <li key={i}>{err}</li>
-                    ))}
-                  </ul>
-                )}
-              </div>
-            )}
-          </Leaf>
+            Skip
+          </button>
+        )}
+        <button
+          className="btn btn-primary ml-2"
+          onClick={errorHandled(next)}
+          disabled={stepState?.isLoading || isLastStep}
+        >
+          Next
+        </button>
+        {stepState?.isLoading && <strong className="ml-2">Loading...</strong>}
+      </div>
+      <div>
+        <button className="btn btn-primary ml-3 mt-3" onClick={toggleStepOrder}>
+          Using Step Order: {stepOrder === stepOrderOne ? "One" : "Two"}
+        </button>
+      </div>
+      <div className="ml-3 mt-3">
+        <strong>Step Order</strong>
+        <p>
+          <label>
+            <input
+              type="checkbox"
+              onChange={() =>
+                setSkipGoToHandler((skipGoToHandler) => !skipGoToHandler)
+              }
+            />{" "}
+            Skip GoTo Handler
+          </label>
+        </p>
+        <p>
+          {stepOrder.map((stepName) => (
+            <button
+              key={stepName}
+              className="btn btn-link"
+              onClick={errorHandled(() => goTo({ stepName, skipGoToHandler }))}
+            >
+              {activeStepName === stepName ? (
+                <strong>{stepName}</strong>
+              ) : (
+                stepName
+              )}
+            </button>
+          ))}
+        </p>
+      </div>
+    </>
+  );
+}
 
-          {/* Mean annual rate of return */}
-          <Leaf
-            model={model}
-            onChange={setModel}
-            validationModel={validationModel}
-            location="investment.meanAnnualReturn"
-            validators={[isRequired, isPositiveNumber]}
-            showErrors={forceShowErrors}
-          >
-            {(value: any, setValue: (v: any) => void, showErrors: () => void, errors: string[]) => (
-              <div style={{ display: 'flex', flexDirection: 'column' }}>
-                <label style={{ fontWeight: 600, marginBottom: 4 }} htmlFor="meanAnnualReturn">Mean annual rate of return (%)</label>
-                <input
-                  id="meanAnnualReturn"
-                  type="number"
-                  inputMode="decimal"
-                  step="0.01"
-                  value={value ?? ''}
-                  onChange={(e) => setValue(e.target.value === '' ? '' : Number(e.target.value))}
-                  onBlur={showErrors}
-                  placeholder="e.g. 7"
-                  style={{ padding: '8px 10px', border: '1px solid #ccc', borderRadius: 6 }}
-                />
-                {errors?.length > 0 && (
-                  <ul style={{ color: '#b91c1c', margin: '4px 0 0', paddingLeft: 18, fontSize: 13 }}>
-                    {errors.map((err, i) => (
-                      <li key={i}>{err}</li>
-                    ))}
-                  </ul>
-                )}
-              </div>
-            )}
-          </Leaf>
+const ManagedActiveStepProvider = ActiveStepContextProvider as unknown as React.FC<React.PropsWithChildren>;
 
-          <div>
-            <button type="submit" style={{ background: '#2563eb', color: '#fff', border: 'none', padding: '10px 18px', borderRadius: 6, cursor: 'pointer', fontWeight: 600 }}>Calculate</button>
-          </div>
-          <pre style={{ background: '#f9fafb', padding: 12, border: '1px solid #e5e7eb', borderRadius: 6, fontSize: 12, maxHeight: 160, overflow: 'auto' }}>{JSON.stringify(model, null, 2)}</pre>
-        </form>
-      </section>
-    </main >
+export default function App(): JSX.Element {
+  return (
+    <ManagedActiveStepProvider>
+      <Steps />
+    </ManagedActiveStepProvider>
   );
 }
