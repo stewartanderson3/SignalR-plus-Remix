@@ -55,27 +55,27 @@ function Steps(): JSX.Element {
       </div>
     ),
 
-    ...wageNames.reduce((acc, stepName) => ({
+    ...wageNames.reduce((acc, wageName) => ({
       ...acc,
-      [stepName]: <Form model={model ?? {}} setModel={setModel} form={[
-        { name: "$ / year", location: `wages.${stepName}.annual`, validators: [Validators.required], type: "currency" },
-        { name: "Average Annual % Raise", location: `wages.${stepName}.raise`, validators: [Validators.required], type: "percent" },
-        { name: "Anticipated Date of Retirement", location: `wages.${stepName}.retireDate`, validators: [Validators.required, Validators.isDate], type: "text" },
+      [wageName]: <Form model={model ?? {}} setModel={setModel} form={[
+        { name: "$ / year", location: `wages.${wageName}.annual`, validators: [Validators.required], type: "currency" },
+        { name: "Average Annual % Raise", location: `wages.${wageName}.raise`, validators: [Validators.required], type: "percent" },
+        { name: "Anticipated Date of Retirement", location: `wages.${wageName}.retireDate`, validators: [Validators.required, Validators.isDate], type: "text" },
       ]} />
     }), {} as Record<string, JSX.Element>),
 
-    ...investmentNames.reduce((acc, stepName) => ({
+    ...investmentNames.reduce((acc, investmentName) => ({
       ...acc,
-      [stepName]: <Form model={model ?? {}} setModel={setModel} form={[
-        { name: "Initial Balance", location: `investments.${stepName}.balance`, validators: [Validators.required], type: "currency" },
-        { name: "Annual % Rate of Return", location: `investments.${stepName}.rate`, validators: [Validators.required], type: "percent" },
+      [investmentName]: <Form model={model ?? {}} setModel={setModel} form={[
+        { name: "Initial Balance", location: `investments.${investmentName}.balance`, validators: [Validators.required], type: "currency" },
+        { name: "Annual % Rate of Return", location: `investments.${investmentName}.rate`, validators: [Validators.required], type: "percent" },
       ]} />
     }), {} as Record<string, JSX.Element>),
 
-    ...annuityNames.reduce((acc, stepName) => ({
+    ...annuityNames.reduce((acc, annuityName) => ({
       ...acc,
-      [stepName]: <Form model={model ?? {}} setModel={setModel} form={[
-        { name: "$ / month", location: `annuities.${stepName}.monthly`, validators: [], type: "currency" },
+      [annuityName]: <Form model={model ?? {}} setModel={setModel} form={[
+        { name: "$ / month", location: `annuities.${annuityName}.monthly`, validators: [], type: "currency" },
       ]} />
     }), {} as Record<string, JSX.Element>),
 
