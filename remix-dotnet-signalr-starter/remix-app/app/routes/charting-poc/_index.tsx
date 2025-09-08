@@ -1,7 +1,8 @@
 import React from "react";
-import { ContactForm, AddressForm, Form } from "../../forms/Form";
+import { Form } from "../../forms/Form";
 import { ActiveStepContextProvider, useActiveStep, useStepIteration } from "../../steps";
 import ChartingPOC from "./chart";
+import { useLocalStorageState } from "leaf-validator";
 
 const errorHandled = (action: () => Promise<void>) => async (): Promise<void> => {
   try {
@@ -31,10 +32,8 @@ const stepOrderOne = [
   "uselessTwo",
   "uselessThree",
 ] as const;
-const stepOrderTwo = ["contact", "uselessTwo", "uselessThree"] as const;
 
 type StepName = typeof stepOrderOne[number];
-type StepOrder = readonly StepName[];
 
 interface StepStateMeta {
   isLoading: boolean;
@@ -46,31 +45,33 @@ interface StepApi {
 }
 
 function Steps(): JSX.Element {
-  const [stepOrder, setStepOrder] = React.useState<StepOrder>(stepOrderOne);
   const [skipGoToHandler, setSkipGoToHandler] = React.useState<boolean>(false);
   const { stepApi, stepState } = useActiveStep<StepStateMeta, StepApi>();
+  const [model, setModel] = useLocalStorageState<Record<string, unknown>>("retirement");
+  const dynamicStepNames = [
+    ...Object.keys(model?.wages ?? {}).sort(),
+    ...Object.keys(model?.investments ?? {}).sort(),
+    ...Object.keys(model?.annuities ?? {}).sort()
+  ];
 
-  const steps: Record<StepName, JSX.Element> = {
-    contact: (
+  const steps: Record<string, JSX.Element> = {
+    Setup: (
       <div className="card">
         <div className="card-header">Setup</div>
-        <Form form={[
+        <Form model={model ?? {}} setModel={setModel} form={[
           { name: "Wages", placeholder: "[Company Name]", location: "wages", validators: [], type: "list" },
           { name: "Investments", placeholder: "[Investment Name]", location: "investments", validators: [], type: "list" },
           { name: "Annuities", placeholder: "[Annuity Name]", location: "annuities", validators: [], type: "list" }
         ]} />
       </div>
     ),
-    uselessOne: <UselessStep name="one" />,
-    address: (
-      <div className="card">
-        <div className="card-header">Address Details</div>
-        <AddressForm />
-      </div>
-    ),
-    uselessTwo: <UselessStep name="two" />,
-    uselessThree: <UselessStep name="three" />,
+    ...dynamicStepNames.reduce((acc, stepName) => ({
+      ...acc,
+      [stepName]: <UselessStep name={stepName} />
+    }), {} as Record<string, JSX.Element>),
   };
+
+  const stepOrder = ["Setup", ...dynamicStepNames];
 
   const {
     activeStep,
@@ -83,14 +84,10 @@ function Steps(): JSX.Element {
     isLastStep,
   } = useStepIteration({
     steps,
-    order: stepOrder as StepName[],
+    order: ["Setup", ...dynamicStepNames],
     onNext: () => stepApi.current?.submit?.(),
     onGoTo: () => stepApi.current?.submit?.(),
   });
-
-  const toggleStepOrder = (): void => {
-    setStepOrder((order) => (order === stepOrderOne ? stepOrderTwo : stepOrderOne));
-  };
 
   const currentIndex = stepOrder.findIndex((s) => s === activeStepName);
   const progress = ((currentIndex + 1) / stepOrder.length) * 100;
@@ -153,9 +150,6 @@ function Steps(): JSX.Element {
             {isLastStep ? 'Finish' : 'Next'}
           </button>
           <div style={{ flex: 1 }} />
-          <button className="btn" onClick={toggleStepOrder} type="button">
-            Order: {stepOrder === stepOrderOne ? "One" : "Two"}
-          </button>
           <label style={{ display: 'flex', alignItems: 'center', gap: '.35rem', fontSize: '.7rem' }}>
             <input
               type="checkbox"

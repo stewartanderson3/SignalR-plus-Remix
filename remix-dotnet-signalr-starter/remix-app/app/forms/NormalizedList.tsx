@@ -11,7 +11,7 @@ export const NormalizedList: React.FC<Props> = ({ items, setItems, ...otherProps
 
     const addItem = () => {
         if (itemName.trim() === '') return;
-        setItems({ ...items, [itemName]: {} });
+        setItems({ ...items, [itemName.trim()]: {} });
         setItemName('');
     };
 
@@ -37,7 +37,7 @@ export const NormalizedList: React.FC<Props> = ({ items, setItems, ...otherProps
             />
             <ul>
                 {itemNames.map((key) => (
-                    <li key={key} style={{ marginBottom: '0.5rem' }}>
+                    <li key={key} style={{ marginBottom: '0.5rem', listStyleType: 'none' }}>
                         <button
                             type="button"
                             className='btn btn-danger'

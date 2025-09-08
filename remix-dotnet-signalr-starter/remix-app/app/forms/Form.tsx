@@ -108,22 +108,14 @@ const fakeSendDataToServer = (data: SubmitPayload): Promise<void> => {
   return new Promise((resolve) => setTimeout(resolve, 2000));
 };
 
-export function ContactForm(): JSX.Element {
-  return <Form form={contactForm} />;
-}
-
-export function AddressForm(): JSX.Element {
-  return <Form form={addressForm} />;
-}
-
 interface FormProps {
   form: FormField[];
+  model: Record<string, unknown>;
+  setModel: (m: any) => void;
 }
 
-export function Form({ form }: FormProps): JSX.Element {
+export function Form({ form, model, setModel }: FormProps): JSX.Element {
   const { stepApi, setStepState } = useActiveStep<StepStateMeta, StepApi>();
-  // Assuming useLocalStorageState takes a key and returns [value, setter]
-  const [model = {}, setModel] = useLocalStorageState<Record<string, unknown>>("form");
   const validationModel = useValidationModel();
   const [showAllValidation, setShowAllValidation] = useState(false);
   const { clearError, errorHandler, errors } = useErrorHandler();
