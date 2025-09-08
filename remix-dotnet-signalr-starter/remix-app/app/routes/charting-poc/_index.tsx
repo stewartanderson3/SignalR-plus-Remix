@@ -31,7 +31,7 @@ const Validators = {
 }
 
 function Steps(): JSX.Element {
-  const [skipGoToHandler, setSkipGoToHandler] = React.useState<boolean>(false);
+  // const [skipGoToHandler, setSkipGoToHandler] = React.useState<boolean>(false);
   const { stepApi, stepState } = useActiveStep<StepStateMeta, StepApi>();
   const [model, setModel] = useLocalStorageState<Record<string, unknown>>("retirement");
   const wageNames = Object.keys(model?.wages ?? {}).sort();
@@ -121,7 +121,8 @@ function Steps(): JSX.Element {
                   data-index={i + 1}
                   data-active={activeStepName === stepName}
                   className="step-pill"
-                  onClick={errorHandled(() => goTo({ stepName, skipGoToHandler }))}
+                  // onClick={errorHandled(() => goTo({ stepName, skipGoToHandler }))}
+                  onClick={errorHandled(() => goTo({ stepName, skipGoToHandler: false }))}
                 >
                   {stepName}
                 </button>
@@ -143,7 +144,7 @@ function Steps(): JSX.Element {
           >
             Back
           </button>
-          {stepState?.isSkippable && (
+          {/* {stepState?.isSkippable && (
             <button
               className="btn btn-link"
               onClick={errorHandled(skip)}
@@ -151,7 +152,7 @@ function Steps(): JSX.Element {
             >
               Skip
             </button>
-          )}
+          )} */}
           <button
             className="btn btn-primary"
             onClick={errorHandled(next)}
@@ -159,7 +160,7 @@ function Steps(): JSX.Element {
           >
             {isLastStep ? 'Finish' : 'Next'}
           </button>
-          <div style={{ flex: 1 }} />
+          {/* <div style={{ flex: 1 }} />
           <label style={{ display: 'flex', alignItems: 'center', gap: '.35rem', fontSize: '.7rem' }}>
             <input
               type="checkbox"
@@ -167,7 +168,7 @@ function Steps(): JSX.Element {
               checked={skipGoToHandler}
             />
             <span className="text-muted">Skip GoTo submit</span>
-          </label>
+          </label> */}
         </div>
       </div>
 
