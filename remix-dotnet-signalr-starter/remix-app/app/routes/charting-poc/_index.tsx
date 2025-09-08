@@ -136,7 +136,12 @@ function Steps(): JSX.Element {
             </div>
           </div>
         </div>
-        <div className="flex gap-sm mt-sm" role="group" aria-label="Primary navigation actions">
+      </div>
+
+      <div id={`step-panel-${activeStepName}`}>{activeStep}</div>
+
+      <div className="card" role="group" aria-label="Primary navigation actions">
+        <div className="flex gap-sm" style={{ padding: '0.25rem 0.25rem 0', alignItems: 'center' }}>
           <button
             className="btn btn-secondary"
             onClick={errorHandled(back)}
@@ -144,6 +149,7 @@ function Steps(): JSX.Element {
           >
             Back
           </button>
+          <div style={{ flex: 1 }} />
           {/* {stepState?.isSkippable && (
             <button
               className="btn btn-link"
@@ -160,19 +166,8 @@ function Steps(): JSX.Element {
           >
             {isLastStep ? 'Finish' : 'Next'}
           </button>
-          {/* <div style={{ flex: 1 }} />
-          <label style={{ display: 'flex', alignItems: 'center', gap: '.35rem', fontSize: '.7rem' }}>
-            <input
-              type="checkbox"
-              onChange={() => setSkipGoToHandler((skipGoToHandler) => !skipGoToHandler)}
-              checked={skipGoToHandler}
-            />
-            <span className="text-muted">Skip GoTo submit</span>
-          </label> */}
         </div>
       </div>
-
-      <div id={`step-panel-${activeStepName}`}>{activeStep}</div>
 
       <ChartingPOC />
     </div>
