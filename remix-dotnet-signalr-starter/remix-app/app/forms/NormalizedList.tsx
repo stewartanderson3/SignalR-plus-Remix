@@ -26,8 +26,9 @@ export const NormalizedList: React.FC<Props> = ({ items, setItems, ...otherProps
         <>
             <TextInput
                 {...otherProps}
+                type="text"
                 value={itemName}
-                onChange={setItemName}
+                onChange={setItemName as unknown as (value: string | number) => void}
                 onKeyDown={(e) => {
                     if (e.key === 'Enter') {
                         e.preventDefault();

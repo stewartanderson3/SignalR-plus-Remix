@@ -13,28 +13,6 @@ const errorHandled = (action: () => Promise<void>) => async (): Promise<void> =>
   }
 };
 
-interface UselessStepProps {
-  name: string;
-}
-
-const UselessStep: React.FC<UselessStepProps> = ({ name }) => (
-  <div className="card" data-testid={`useless-step-${name}`}>
-    <div className="card-header">Informational Step</div>
-    <p className="text-muted" style={{ marginTop: 0 }}>This is a placeholder ("{name}") to simulate optional workflow content.</p>
-    <p className="step-meta">You can reorder or skip steps using the controls below.</p>
-  </div>
-);
-
-const stepOrderOne = [
-  "contact",
-  "uselessOne",
-  "address",
-  "uselessTwo",
-  "uselessThree",
-] as const;
-
-type StepName = typeof stepOrderOne[number];
-
 interface StepStateMeta {
   isLoading: boolean;
   isSkippable: boolean;
@@ -44,14 +22,25 @@ interface StepApi {
   submit?: () => Promise<void>;
 }
 
+const Validators = {
+  required: (value: string | undefined | null) =>
+    (!value || value.toString().trim() === "") && ["Value is required"],
+  isDate: (value: string | undefined | null) => value && /^\d{2}\/\d{2}\/\d{4}$/.test(value.toString())
+    ? false
+    : ["Date must be in MM/DD/YYYY format"]
+}
+
 function Steps(): JSX.Element {
   const [skipGoToHandler, setSkipGoToHandler] = React.useState<boolean>(false);
   const { stepApi, stepState } = useActiveStep<StepStateMeta, StepApi>();
   const [model, setModel] = useLocalStorageState<Record<string, unknown>>("retirement");
+  const wageNames = Object.keys(model?.wages ?? {}).sort();
+  const investmentNames = Object.keys(model?.investments ?? {}).sort();
+  const annuityNames = Object.keys(model?.annuities ?? {}).sort();
   const dynamicStepNames = [
-    ...Object.keys(model?.wages ?? {}).sort(),
-    ...Object.keys(model?.investments ?? {}).sort(),
-    ...Object.keys(model?.annuities ?? {}).sort()
+    ...wageNames,
+    ...investmentNames,
+    ...annuityNames
   ];
 
   const steps: Record<string, JSX.Element> = {
@@ -59,16 +48,37 @@ function Steps(): JSX.Element {
       <div className="card">
         <div className="card-header">Setup</div>
         <Form model={model ?? {}} setModel={setModel} form={[
-          { name: "Wages", placeholder: "[Company Name]", location: "wages", validators: [], type: "list" },
-          { name: "Investments", placeholder: "[Investment Name]", location: "investments", validators: [], type: "list" },
-          { name: "Annuities", placeholder: "[Annuity Name]", location: "annuities", validators: [], type: "list" }
+          { name: "Wages", placeholder: "[Company Name]", location: "wages", validators: [Validators.required], type: "list" },
+          { name: "Investments", placeholder: "[Investment Name]", location: "investments", validators: [Validators.required], type: "list" },
+          { name: "Annuities", placeholder: "[Annuity Name]", location: "annuities", validators: [Validators.required], type: "list" }
         ]} />
       </div>
     ),
-    ...dynamicStepNames.reduce((acc, stepName) => ({
+
+    ...wageNames.reduce((acc, stepName) => ({
       ...acc,
-      [stepName]: <UselessStep name={stepName} />
+      [stepName]: <Form model={model ?? {}} setModel={setModel} form={[
+        { name: "$ / year", location: `wages.${stepName}.annual`, validators: [Validators.required], type: "currency" },
+        { name: "Average Annual % Raise", location: `wages.${stepName}.raise`, validators: [Validators.required], type: "percent" },
+        { name: "Anticipated Date of Retirement", location: `wages.${stepName}.retireDate`, validators: [Validators.required, Validators.isDate], type: "text" },
+      ]} />
     }), {} as Record<string, JSX.Element>),
+
+    ...investmentNames.reduce((acc, stepName) => ({
+      ...acc,
+      [stepName]: <Form model={model ?? {}} setModel={setModel} form={[
+        { name: "Initial Balance", location: `investments.${stepName}.balance`, validators: [Validators.required], type: "currency" },
+        { name: "Annual % Rate of Return", location: `investments.${stepName}.rate`, validators: [Validators.required], type: "percent" },
+      ]} />
+    }), {} as Record<string, JSX.Element>),
+
+    ...annuityNames.reduce((acc, stepName) => ({
+      ...acc,
+      [stepName]: <Form model={model ?? {}} setModel={setModel} form={[
+        { name: "$ / month", location: `annuities.${stepName}.monthly`, validators: [], type: "currency" },
+      ]} />
+    }), {} as Record<string, JSX.Element>),
+
   };
 
   const stepOrder = ["Setup", ...dynamicStepNames];
