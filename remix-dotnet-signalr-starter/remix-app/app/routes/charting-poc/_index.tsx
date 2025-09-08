@@ -142,13 +142,13 @@ function Steps(): JSX.Element {
 
       <div className="card" role="group" aria-label="Primary navigation actions">
         <div className="flex gap-sm" style={{ padding: '0.25rem 0.25rem 0', alignItems: 'center' }}>
-          <button
+          {!isFirstStep && <button
             className="btn btn-secondary"
             onClick={errorHandled(back)}
-            disabled={stepState?.isLoading || isFirstStep}
+            disabled={stepState?.isLoading}
           >
             Back
-          </button>
+          </button>}
           <div style={{ flex: 1 }} />
           {/* {stepState?.isSkippable && (
             <button
