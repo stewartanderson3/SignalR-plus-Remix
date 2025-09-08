@@ -8,6 +8,7 @@ import {
 } from "leaf-validator";
 import { TextInput } from "./TextInput";
 import { useActiveStep } from "../steps";
+import { NormalizedList } from "./NormalizedList";
 
 type Validator = (value: string | undefined | null) => false | string[];
 
@@ -15,6 +16,8 @@ interface FormField {
   name: string;
   location: string; // dot path into model
   validators: Validator[];
+  type: "text" | "list";
+  [key: string]: any;
 }
 
 interface StepStateMeta {
@@ -51,21 +54,25 @@ const contactForm: FormField[] = [
     name: "First Name",
     location: "person.firstName",
     validators: [isRequired],
+    type: "text",
   },
   {
     name: "Last Name",
     location: "person.lastName",
     validators: [isRequired],
+    type: "text",
   },
   {
     name: "Email",
     location: "person.contact.email",
     validators: [isRequired, isValidEmailAddress],
+    type: "text",
   },
   {
     name: "Phone Number",
     location: "person.contact.phoneNumber",
     validators: [isRequired, isValidPhoneNumber],
+    type: "text",
   },
 ];
 
@@ -74,21 +81,25 @@ const addressForm: FormField[] = [
     name: "Street Address",
     location: "person.address.street",
     validators: [isRequired],
+    type: "text",
   },
   {
     name: "City",
     location: "person.address.city",
     validators: [isRequired],
+    type: "text",
   },
   {
     name: "State",
     location: "person.address.state",
     validators: [isRequired],
+    type: "text",
   },
   {
     name: "Zip Code",
     location: "person.address.zip",
     validators: [isRequired],
+    type: "text",
   },
 ];
 
@@ -109,7 +120,7 @@ interface FormProps {
   form: FormField[];
 }
 
-function Form({ form }: FormProps): JSX.Element {
+export function Form({ form }: FormProps): JSX.Element {
   const { stepApi, setStepState } = useActiveStep<StepStateMeta, StepApi>();
   // Assuming useLocalStorageState takes a key and returns [value, setter]
   const [model = {}, setModel] = useLocalStorageState<Record<string, unknown>>("form");
@@ -121,7 +132,7 @@ function Form({ form }: FormProps): JSX.Element {
     if (event) event.preventDefault();
     setShowAllValidation(true);
     if (validationModel.getAllErrorsForLocation("").length === 0) {
-  await showSubmittingWhile(fakeSendDataToServer({ model: model!, form }));
+      await showSubmittingWhile(fakeSendDataToServer({ model: model!, form }));
     }
 
     const hasErrors = validationModel.getAllErrorsForLocation("").length > 0;
@@ -179,7 +190,7 @@ function formElements({
   showAllValidation,
   validationModel,
 }: FormElementsParams): JSX.Element[] {
-  return form.map(({ name, ...formElement }, index) => (
+  return form.map(({ name, type, placeholder, ...formElement }, index) => (
     <Leaf
       key={index}
       showErrors={showAllValidation}
@@ -191,14 +202,20 @@ function formElements({
       {(value, updateValue, showErrors, errors) => (
         <label>
           {name}
-          <TextInput
-            value={value ?? ""}
-            onChange={updateValue}
-            onBlur={showErrors}
-            className={`${
-              errors.length > 0 ? "is-invalid " : ""
-            }form-control mb-1`}
-          />
+          {type === "list"
+            ? <NormalizedList
+              placeholder={placeholder}
+              items={value as unknown as Record<string, object> || {}}
+              setItems={updateValue as unknown as (items: Record<string, object>) => void}
+            />
+            : <TextInput
+              placeholder={placeholder}
+              value={value ?? ""}
+              onChange={updateValue}
+              onBlur={showErrors}
+              className={`${errors.length > 0 ? "is-invalid " : ""}form-control mb-1`}
+            />
+          }
           {errors.length > 0 && (
             <ul className="errors">
               {errors.map((error, index) => (

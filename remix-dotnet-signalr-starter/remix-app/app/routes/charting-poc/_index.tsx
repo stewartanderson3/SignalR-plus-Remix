@@ -1,5 +1,5 @@
 import React from "react";
-import { ContactForm, AddressForm } from "../../forms/Form";
+import { ContactForm, AddressForm, Form } from "../../forms/Form";
 import { ActiveStepContextProvider, useActiveStep, useStepIteration } from "../../steps";
 import ChartingPOC from "./chart";
 
@@ -53,8 +53,12 @@ function Steps(): JSX.Element {
   const steps: Record<StepName, JSX.Element> = {
     contact: (
       <div className="card">
-        <div className="card-header">Contact Information</div>
-        <ContactForm />
+        <div className="card-header">Setup</div>
+        <Form form={[
+          { name: "Wages", placeholder: "[Company Name]", location: "wages", validators: [], type: "list" },
+          { name: "Investments", placeholder: "[Investment Name]", location: "investments", validators: [], type: "list" },
+          { name: "Annuities", placeholder: "[Annuity Name]", location: "annuities", validators: [], type: "list" }
+        ]} />
       </div>
     ),
     uselessOne: <UselessStep name="one" />,
