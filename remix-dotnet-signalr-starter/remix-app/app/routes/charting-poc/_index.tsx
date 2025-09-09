@@ -53,11 +53,13 @@ function buildWageMonthlyIncomeChart(wageName: string, model: any): {
   beginYear: number;
   endYear: number;
   valueLabel: string;
-  series: { name: string; values: Record<number, number>; strokeWidth: number }[];
+  series: { name: string; values: Record<number, number>; strokeWidth?: number; strokeDasharray?: string }[];
 } {
   const wageData: any = model?.wages?.[wageName] || {};
   const annual: number = Number(wageData?.annual) || 0;
   const raise: number = Number(wageData?.raise) || 0; // decimal form (0.02 = 2%)
+  const taxRate: number = Number((model as any)?.taxPercentage) || 0;
+  const inflRate: number = Number((model as any)?.inflationPercentage) || 0;
   const stopWorkDateStr: string | undefined = wageData?.stopWorkDate;
   const beginYear = new Date().getFullYear();
   let endYear = beginYear;
@@ -65,17 +67,28 @@ function buildWageMonthlyIncomeChart(wageName: string, model: any): {
     endYear = Number(stopWorkDateStr.split('/')[2]) || beginYear;
   }
   if (endYear < beginYear) endYear = beginYear; // guard
-  const values: Record<number, number> = {};
+  const grossValues: Record<number, number> = {};
+  const afterTaxValues: Record<number, number> = {};
+  const realAfterTaxValues: Record<number, number> = {};
   for (let y = beginYear; y <= endYear; y++) {
     const growthFactor = Math.pow(1 + raise, y - beginYear);
     const monthlyIncome = annual * growthFactor / 12;
-    values[y] = Math.round(monthlyIncome);
+    const gross = Math.round(monthlyIncome);
+    const afterTax = Math.round(monthlyIncome * (1 - taxRate));
+    const realAfterTax = Math.round(afterTax / Math.pow(1 + inflRate, y - beginYear));
+    grossValues[y] = gross;
+    afterTaxValues[y] = afterTax;
+    realAfterTaxValues[y] = realAfterTax;
   }
   return {
     beginYear,
     endYear,
     valueLabel: 'Monthly Income',
-    series: [{ name: `${wageName} - Monthly Income`, values, strokeWidth: 3 }]
+    series: [
+      { name: `${wageName} Gross`, values: grossValues, strokeWidth: 3 },
+      { name: `${wageName} After-Tax`, values: afterTaxValues, strokeDasharray: '5 4' },
+      { name: `${wageName} After-Tax (Real)`, values: realAfterTaxValues, strokeDasharray: '2 3' }
+    ]
   };
 }
 
@@ -92,13 +105,15 @@ function buildInvestmentBalanceAndWithdrawalChart(investmentName: string, model:
   beginYear: number;
   endYear: number;
   balance: { name: string; values: Record<number, number>; strokeWidth?: number };
-  withdrawal: { name: string; values: Record<number, number | null>; strokeDasharray?: string; strokeWidth?: number };
+  withdrawalSeries: { name: string; values: Record<number, number | null>; strokeDasharray?: string; strokeWidth?: number }[];
 } {
   const investment: any = model?.investments?.[investmentName] || {};
   const initialBalance: number = Number(investment?.balance) || 0;
   const rate: number = Number(investment?.rate) || 0; // decimal form
   const withdrawalDateStr: string | undefined = investment?.withdrawalDate; // MM/DD/YYYY
   const withdrawalRate: number = Number(investment?.withdrawalRate) || 0; // decimal form
+  const taxRate: number = Number((model as any)?.taxPercentage) || 0;
+  const inflRate: number = Number((model as any)?.inflationPercentage) || 0;
   const retireDateStr: string | undefined = model?.retireDate;
   const yearsAfterRetire: number = Number(model?.yearsAfterRetire) || 0;
   const nowYear = new Date().getFullYear();
@@ -111,6 +126,8 @@ function buildInvestmentBalanceAndWithdrawalChart(investmentName: string, model:
 
   const balanceValues: Record<number, number> = {};
   const withdrawalMonthlyValues: Record<number, number | null> = {};
+  const withdrawalAfterTaxValues: Record<number, number | null> = {};
+  const withdrawalRealAfterTaxValues: Record<number, number | null> = {};
 
   let balanceStartOfYear = initialBalance; // starting balance for current year (end of previous year)
   for (let y = beginYear; y <= endYear; y++) {
@@ -123,9 +140,16 @@ function buildInvestmentBalanceAndWithdrawalChart(investmentName: string, model:
       withdrawalAnnual = balanceStartOfYear * withdrawalRate; // based on starting balance assumption
       if (withdrawalAnnual > balanceAfterGrowth) withdrawalAnnual = balanceAfterGrowth; // cap
       balanceAfterGrowth -= withdrawalAnnual;
-      withdrawalMonthlyValues[y] = Math.round(withdrawalAnnual / 12);
+      const grossMonthly = withdrawalAnnual / 12;
+      withdrawalMonthlyValues[y] = Math.round(grossMonthly);
+      const afterTax = grossMonthly * (1 - taxRate);
+      withdrawalAfterTaxValues[y] = Math.round(afterTax);
+      const realAfterTax = afterTax / Math.pow(1 + inflRate, y - beginYear);
+      withdrawalRealAfterTaxValues[y] = Math.round(realAfterTax);
     } else {
       withdrawalMonthlyValues[y] = null; // null so line starts at first withdrawal year
+      withdrawalAfterTaxValues[y] = null;
+      withdrawalRealAfterTaxValues[y] = null;
     }
     balanceValues[y] = Math.round(balanceAfterGrowth);
     balanceStartOfYear = balanceAfterGrowth; // next loop
@@ -135,7 +159,11 @@ function buildInvestmentBalanceAndWithdrawalChart(investmentName: string, model:
     beginYear,
     endYear,
     balance: { name: `${investmentName} Balance`, values: balanceValues, strokeWidth: 3 },
-    withdrawal: { name: `${investmentName} Monthly Withdrawal`, values: withdrawalMonthlyValues, strokeDasharray: '4 4' }
+    withdrawalSeries: [
+      { name: `${investmentName} Withdrawal Gross`, values: withdrawalMonthlyValues, strokeDasharray: '4 4' },
+      { name: `${investmentName} Withdrawal After-Tax`, values: withdrawalAfterTaxValues, strokeDasharray: '5 3' },
+      { name: `${investmentName} Withdrawal After-Tax (Real)`, values: withdrawalRealAfterTaxValues, strokeDasharray: '2 3' }
+    ]
   };
 }
 
@@ -148,7 +176,7 @@ function buildAnnuityMonthlyIncomeChart(annuityName: string, model: any): {
   beginYear: number;
   endYear: number;
   valueLabel: string;
-  series: { name: string; values: Record<number, number | null>; strokeWidth?: number }[];
+  series: { name: string; values: Record<number, number | null>; strokeWidth?: number; strokeDasharray?: string }[];
 } {
   const annuity: any = model?.annuities?.[annuityName] || {};
   const monthly: number = Number(annuity?.monthly) || 0;
@@ -156,25 +184,40 @@ function buildAnnuityMonthlyIncomeChart(annuityName: string, model: any): {
   const nowYear = new Date().getFullYear();
   const retireDateStr: string | undefined = model?.retireDate;
   const yearsAfterRetire: number = Number(model?.yearsAfterRetire) || 0;
+  const taxRate: number = Number((model as any)?.taxPercentage) || 0;
+  const inflRate: number = Number((model as any)?.inflationPercentage) || 0;
   let retireYear: number | undefined;
   if (retireDateStr && /\d{2}\/\d{2}\/\d{4}/.test(retireDateStr)) retireYear = Number(retireDateStr.split('/')[2]);
   const endYear = retireYear ? retireYear + yearsAfterRetire : nowYear + 10;
   const beginYear = nowYear;
   let startYear: number | undefined;
   if (startDateStr && /\d{2}\/\d{2}\/\d{4}/.test(startDateStr)) startYear = Number(startDateStr.split('/')[2]);
-  const values: Record<number, number | null> = {};
+  const grossValues: Record<number, number | null> = {};
+  const afterTaxValues: Record<number, number | null> = {};
+  const realAfterTaxValues: Record<number, number | null> = {};
   for (let y = beginYear; y <= endYear; y++) {
     if (startYear !== undefined && y >= startYear) {
-      values[y] = monthly ? Math.round(monthly) : 0;
+      const gross = monthly ? Math.round(monthly) : 0;
+      const afterTax = Math.round(gross * (1 - taxRate));
+      const realAfterTax = Math.round(afterTax / Math.pow(1 + inflRate, y - beginYear));
+      grossValues[y] = gross;
+      afterTaxValues[y] = afterTax;
+      realAfterTaxValues[y] = realAfterTax;
     } else {
-      values[y] = null; // so line starts at first payment year
+      grossValues[y] = null;
+      afterTaxValues[y] = null;
+      realAfterTaxValues[y] = null; // so line starts at first payment year
     }
   }
   return {
     beginYear,
     endYear,
     valueLabel: 'Monthly Income',
-    series: [{ name: `${annuityName} Monthly Income`, values, strokeWidth: 3 }]
+    series: [
+      { name: `${annuityName} Gross`, values: grossValues, strokeWidth: 3 },
+      { name: `${annuityName} After-Tax`, values: afterTaxValues, strokeDasharray: '5 4' },
+      { name: `${annuityName} After-Tax (Real)`, values: realAfterTaxValues, strokeDasharray: '2 3' }
+    ]
   };
 }
 
@@ -207,6 +250,18 @@ function Steps(): JSX.Element {
             location: "yearsAfterRetire",
             validators: [Validators.required],
             type: "number"
+          },
+          {
+            name: "Tax percentage (%)",
+            location: "taxPercentage",
+            validators: [Validators.required],
+            type: "percent"
+          },
+          {
+            name: "Inflation percentage (%)",
+            location: "inflationPercentage",
+            validators: [Validators.required],
+            type: "percent"
           }
         ]} />
       </div>
@@ -256,7 +311,7 @@ function Steps(): JSX.Element {
     ...investmentNames.reduce((acc, investmentName) => ({
       ...acc,
       [investmentName]: (() => {
-        const { beginYear, endYear, balance, withdrawal } = buildInvestmentBalanceAndWithdrawalChart(investmentName, model);
+  const { beginYear, endYear, balance, withdrawalSeries } = buildInvestmentBalanceAndWithdrawalChart(investmentName, model);
         return (
           <div className="card">
             <div className="card-header">Investments</div>
@@ -291,7 +346,7 @@ function Steps(): JSX.Element {
                   beginYear={beginYear}
                   endYear={endYear}
                   valueLabel="Monthly Withdrawal"
-                  series={[withdrawal]}
+                  series={withdrawalSeries}
                 />
               </div>
             </div>
