@@ -16,7 +16,7 @@ interface FormField {
   name: string;
   location: string; // dot path into model
   validators: Validator[];
-  type: "text" | "list" | "currency" | "percent";
+  type: "text" | "list" | "currency" | "percent" | "number";
   [key: string]: any;
 }
 
@@ -33,8 +33,6 @@ interface SubmitPayload {
   model: Record<string, unknown>;
   form: FormField[];
 }
-
-
 
 interface FormProps {
   form: FormField[];

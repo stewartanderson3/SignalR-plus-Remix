@@ -6,7 +6,7 @@ export interface TextInputProps extends Omit<React.InputHTMLAttributes<HTMLInput
   value?: string | number;
   onChange: (value: string | number) => void;
   autofocus?: boolean;
-  type?: "text" | "currency" | "percent";
+  type?: "text" | "currency" | "percent" | "number";
 }
 
 export function TextInput(props: TextInputProps): JSX.Element {
@@ -28,6 +28,12 @@ export function TextInput(props: TextInputProps): JSX.Element {
       return "$" + Number(num).toLocaleString(undefined, { minimumFractionDigits: 0 });
     },
     text: (val: string | number | undefined) => (val === undefined || val === null ? "" : val.toString()),
+    number: (val: string | number | undefined) => {
+      if (val === undefined || val === null || val === "") return "";
+      const num = typeof val === "number" ? val : parseFloat(val);
+      if (isNaN(num)) return "";
+      return Number(num).toLocaleString(undefined, { minimumFractionDigits: 0 });
+    }
   }
 
   const parses = {
@@ -44,6 +50,12 @@ export function TextInput(props: TextInputProps): JSX.Element {
       return num;
     },
     text: (val: string) => (val === undefined || val === null ? "" : val.toString()),
+    number: (val: string) => {
+      if (!val || val.trim() === "") return undefined;
+      const num = parseFloat(val.replace(/[,]/g, ""));
+      if (isNaN(num)) return undefined;
+      return num;
+    }
   }
 
   useEffect(() => {

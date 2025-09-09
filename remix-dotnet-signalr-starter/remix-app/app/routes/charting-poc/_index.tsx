@@ -1,7 +1,7 @@
 import React from "react";
 import { Form } from "../../forms/Form";
 import { ActiveStepContextProvider, useActiveStep, useStepIteration } from "../../steps";
-import ChartingPOC from "./chart";
+import FinancialChart from "./chart";
 import { useLocalStorageState } from "leaf-validator";
 
 const errorHandled = (action: () => Promise<void>) => async (): Promise<void> => {
@@ -49,6 +49,36 @@ const Validators = {
   }
 }
 
+function buildWageMonthlyIncomeChart(wageName: string, model: any): {
+  beginYear: number;
+  endYear: number;
+  valueLabel: string;
+  series: { name: string; values: Record<number, number>; strokeWidth: number }[];
+} {
+  const wageData: any = model?.wages?.[wageName] || {};
+  const annual: number = Number(wageData?.annual) || 0;
+  const raise: number = Number(wageData?.raise) || 0; // decimal form (0.02 = 2%)
+  const stopWorkDateStr: string | undefined = wageData?.stopWorkDate;
+  const beginYear = new Date().getFullYear();
+  let endYear = beginYear;
+  if (stopWorkDateStr && /\d{2}\/\d{2}\/\d{4}/.test(stopWorkDateStr)) {
+    endYear = Number(stopWorkDateStr.split('/')[2]) || beginYear;
+  }
+  if (endYear < beginYear) endYear = beginYear; // guard
+  const values: Record<number, number> = {};
+  for (let y = beginYear; y <= endYear; y++) {
+    const growthFactor = Math.pow(1 + raise, y - beginYear);
+    const monthlyIncome = annual * growthFactor / 12;
+    values[y] = Math.round(monthlyIncome);
+  }
+  return {
+    beginYear,
+    endYear,
+    valueLabel: 'Monthly Income',
+    series: [{ name: `${wageName} - Monthly Income`, values, strokeWidth: 3 }]
+  };
+}
+
 function Steps(): JSX.Element {
   // const [skipGoToHandler, setSkipGoToHandler] = React.useState<boolean>(false);
   const { stepApi, stepState } = useActiveStep<StepStateMeta, StepApi>();
@@ -73,6 +103,12 @@ function Steps(): JSX.Element {
             validators: [Validators.required, Validators.isFutureOrCurrentDate],
             type: "text"
           },
+          {
+            name: "How many years do you want to plan for?",
+            location: "yearsAfterRetire",
+            validators: [Validators.required],
+            type: "number"
+          }
         ]} />
       </div>
     ),
@@ -90,20 +126,32 @@ function Steps(): JSX.Element {
 
     ...wageNames.reduce((acc, wageName) => ({
       ...acc,
-      [wageName]: <div className="card">
-        <div className="card-header">Current Wages & Salaries</div>
-        <div className="card-subheader">{wageName}</div>
-        <Form key={`wages.${wageName}`} model={model ?? {}} setModel={setModel} form={[
-          { name: "$ / year", location: `wages.${wageName}.annual`, validators: [Validators.required], type: "currency" },
-          { name: "Average Annual % Raise", location: `wages.${wageName}.raise`, validators: [Validators.required], type: "percent" },
-          {
-            name: "Anticipated Date to Stop Work",
-            location: `wages.${wageName}.stopWorkDate`,
-            validators: [Validators.required, Validators.isFutureOrCurrentDate],
-            type: "text"
-          },
-        ]} />
-      </div>
+      [wageName]: (() => {
+        const chartProps = buildWageMonthlyIncomeChart(wageName, model);
+        return (
+          <div className="card">
+            <div className="card-header">Current Wages & Salaries</div>
+            <div className="card-subheader">{wageName}</div>
+            <div className="flex" style={{ gap: '1rem', alignItems: 'flex-start' }}>
+              <div style={{ flex: '0 0 340px', maxWidth: 400 }}>
+                <Form key={`wages.${wageName}`} model={model ?? {}} setModel={setModel} form={[
+                  { name: "$ / year", location: `wages.${wageName}.annual`, validators: [Validators.required], type: "currency" },
+                  { name: "Average Annual % Raise", location: `wages.${wageName}.raise`, validators: [Validators.required], type: "percent" },
+                  {
+                    name: "Anticipated Date to Stop Work",
+                    location: `wages.${wageName}.stopWorkDate`,
+                    validators: [Validators.required, Validators.isFutureOrCurrentDate],
+                    type: "text"
+                  },
+                ]} />
+              </div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <FinancialChart {...chartProps} />
+              </div>
+            </div>
+          </div>
+        );
+      })()
     }), {} as Record<string, JSX.Element>),
 
     ...investmentNames.reduce((acc, investmentName) => ({
@@ -230,16 +278,53 @@ function Steps(): JSX.Element {
           </button>}
         </div>
       </div>
-
-      <ChartingPOC />
     </div>
   );
 }
 
 export default function App(): JSX.Element {
+  // Simple derived chart example (placeholder): Use retire year + planning span if available
+  // This is intentionally lightweight; real implementation should derive monthly/yearly income & net worth projections
+  const [model] = useLocalStorageState<Record<string, any>>("retirement");
+  const retireDateStr: string | undefined = model?.retireDate;
+  let retireYear: number | undefined;
+  if (retireDateStr && /\d{2}\/\d{2}\/\d{4}/.test(retireDateStr)) {
+    retireYear = Number(retireDateStr.split('/')[2]);
+  }
+  const yearsAfter: number = Number(model?.yearsAfterRetire) || 10;
+  const beginYear = new Date().getFullYear();
+  const endYear = retireYear ? retireYear + yearsAfter : beginYear + yearsAfter;
+
+  // Mock series: wages decline, net worth grows (placeholder logic)
+  const wagesSeries: Record<number, number> = {};
+  const netWorthSeries: Record<number, number> = {};
+  let wageBase = 0;
+  const wageEntries = Object.values(model?.wages || {}) as any[];
+  if (wageEntries.length) {
+    wageBase = wageEntries.reduce((acc, w: any) => acc + (Number(w?.annual) || 0), 0);
+  }
+  let netWorth: number = (Object.values(model?.investments || {}) as any[]).reduce((acc: number, inv: any) => acc + (Number(inv?.balance) || 0), 0);
+  for (let y = beginYear; y <= endYear; y++) {
+    const isRetired = retireYear ? y >= retireYear : false;
+    wagesSeries[y] = wageBase ? Math.max(0, Math.round(wageBase * (isRetired ? 0.15 : 1 - (y - beginYear) * 0.03))) : 0;
+    netWorth = Math.round(netWorth * 1.05 + (wagesSeries[y] * 0.15));
+    netWorthSeries[y] = netWorth;
+  }
+
   return (
     <ActiveStepContextProvider>
-      <Steps />
+      <div className="flex flex-col gap-md">
+        {/* <FinancialChart
+          beginYear={beginYear}
+          endYear={endYear}
+          valueLabel="Income / Net Worth"
+          series={[
+            { name: 'Projected Wages', values: wagesSeries, strokeDasharray: '4 4' },
+            { name: 'Projected Net Worth', values: netWorthSeries, strokeWidth: 3 }
+          ]}
+        /> */}
+        <Steps />
+      </div>
     </ActiveStepContextProvider>
   );
 }
