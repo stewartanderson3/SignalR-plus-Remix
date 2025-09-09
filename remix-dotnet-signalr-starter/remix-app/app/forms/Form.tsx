@@ -110,7 +110,7 @@ function formElements({
   showAllValidation,
   validationModel,
 }: FormElementsParams): JSX.Element[] {
-  return form.map(({ name, type, placeholder, ...formElement }, index) => (
+  return form.map(({ name, type, placeholder, autofocus, ...formElement }, index) => (
     <Leaf
       key={index}
       showErrors={showAllValidation}
@@ -124,11 +124,13 @@ function formElements({
           {name}
           {type === "list"
             ? <NormalizedList
+              autoFocus={autofocus}
               placeholder={placeholder}
               items={value as unknown as Record<string, object> || {}}
               setItems={updateValue as unknown as (items: Record<string, object>) => void}
             />
             : <TextInput
+              autofocus={autofocus}
               placeholder={placeholder}
               value={value ?? ""}
               onChange={updateValue as unknown as (value: string | number) => void}

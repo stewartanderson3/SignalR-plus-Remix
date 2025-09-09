@@ -24,10 +24,29 @@ interface StepApi {
 
 const Validators = {
   required: (value: string | undefined | null) =>
-    (!value || value.toString().trim() === "") && ["Value is required"],
+    (value === null || value === undefined) && ["Value is required"],
   isDate: (value: string | undefined | null) => value && /^\d{2}\/\d{2}\/\d{4}$/.test(value.toString())
     ? false
-    : ["Date must be in MM/DD/YYYY format"]
+    : ["Date must be in MM/DD/YYYY format"],
+  isFutureOrCurrentDate: (value: string | undefined | null) => {
+    if (!value || !/^\d{2}\/\d{2}\/\d{4}$/.test(value.toString())) return ["Date must be in MM/DD/YYYY format"];
+    const parts = value.split('/');
+    const month = parseInt(parts[0], 10) - 1;
+    const day = parseInt(parts[1], 10);
+    const year = parseInt(parts[2], 10);
+    const date = new Date(year, month, day);
+
+    // Guard against invalid dates like 02/30/2025 which JS normalizes (month/day rollover)
+    if (date.getFullYear() !== year || date.getMonth() !== month || date.getDate() !== day) {
+      return ["Date is not a valid calendar day"];
+    }
+
+    // Normalize 'now' to the start of today so that the current calendar date passes.
+    const now = new Date();
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+
+    return date >= today ? false : ["Date must be in the future or current"];
+  }
 }
 
 function Steps(): JSX.Element {
@@ -44,11 +63,25 @@ function Steps(): JSX.Element {
   ];
 
   const steps: Record<string, JSX.Element> = {
+    Planning: (
+      <div className="card">
+        <div className="card-header">Pre-Planning</div>
+        <Form key="planning" model={model ?? {}} setModel={setModel} form={[
+          {
+            name: "Retirement Date",
+            location: "retireDate",
+            validators: [Validators.required, Validators.isFutureOrCurrentDate],
+            type: "text"
+          },
+        ]} />
+      </div>
+    ),
+
     Setup: (
       <div className="card">
         <div className="card-header">Setup</div>
         <Form key="setup" model={model ?? {}} setModel={setModel} form={[
-          { name: "Wages", placeholder: "[Company Name]", location: "wages", validators: [Validators.required], type: "list" },
+          { name: "Current Wages & Salaries", placeholder: "[Company Name]", location: "wages", validators: [Validators.required], type: "list" },
           { name: "Investments", placeholder: "[Investment Name]", location: "investments", validators: [Validators.required], type: "list" },
           { name: "Annuities", placeholder: "[Annuity Name]", location: "annuities", validators: [Validators.required], type: "list" }
         ]} />
@@ -58,11 +91,17 @@ function Steps(): JSX.Element {
     ...wageNames.reduce((acc, wageName) => ({
       ...acc,
       [wageName]: <div className="card">
-        <div className="card-header">Wages & Salaries - {wageName}</div>
+        <div className="card-header">Current Wages & Salaries</div>
+        <div className="card-subheader">{wageName}</div>
         <Form key={`wages.${wageName}`} model={model ?? {}} setModel={setModel} form={[
           { name: "$ / year", location: `wages.${wageName}.annual`, validators: [Validators.required], type: "currency" },
           { name: "Average Annual % Raise", location: `wages.${wageName}.raise`, validators: [Validators.required], type: "percent" },
-          { name: "Anticipated Date of Retirement", location: `wages.${wageName}.retireDate`, validators: [Validators.required, Validators.isDate], type: "text" },
+          {
+            name: "Anticipated Date to Stop Work",
+            location: `wages.${wageName}.stopWorkDate`,
+            validators: [Validators.required, Validators.isFutureOrCurrentDate],
+            type: "text"
+          },
         ]} />
       </div>
     }), {} as Record<string, JSX.Element>),
@@ -70,10 +109,17 @@ function Steps(): JSX.Element {
     ...investmentNames.reduce((acc, investmentName) => ({
       ...acc,
       [investmentName]: <div className="card">
-        <div className="card-header">Investments - {investmentName}</div>
+        <div className="card-header">Investments</div>
+        <div className="card-subheader">{investmentName}</div>
         <Form key={`investments.${investmentName}`} model={model ?? {}} setModel={setModel} form={[
           { name: "Initial Balance", location: `investments.${investmentName}.balance`, validators: [Validators.required], type: "currency" },
           { name: "Annual % Rate of Return", location: `investments.${investmentName}.rate`, validators: [Validators.required], type: "percent" },
+          {
+            name: "Start Taking Withdrawals Date",
+            location: `investments.${investmentName}.withdrawalDate`,
+            validators: [Validators.required, Validators.isDate],
+            type: "text"
+          },
         ]} />
       </div>
     }), {} as Record<string, JSX.Element>),
@@ -81,16 +127,23 @@ function Steps(): JSX.Element {
     ...annuityNames.reduce((acc, annuityName) => ({
       ...acc,
       [annuityName]: <div className="card">
-        <div className="card-header">Annuities - {annuityName}</div>
+        <div className="card-header">Annuities</div>
+        <div className="card-subheader">{annuityName}</div>
         <Form key={`annuities.${annuityName}`} model={model ?? {}} setModel={setModel} form={[
           { name: "$ / month", location: `annuities.${annuityName}.monthly`, validators: [], type: "currency" },
+          {
+            name: "Start Date",
+            location: `annuities.${annuityName}.startDate`,
+            validators: [Validators.required, Validators.isDate],
+            type: "text"
+          },
         ]} />
       </div>
     }), {} as Record<string, JSX.Element>),
 
   };
 
-  const stepOrder = ["Setup", ...dynamicStepNames];
+  const stepOrder = ["Planning", "Setup", ...dynamicStepNames];
 
   const {
     activeStep,
@@ -103,7 +156,7 @@ function Steps(): JSX.Element {
     isLastStep,
   } = useStepIteration({
     steps,
-    order: ["Setup", ...dynamicStepNames],
+    order: stepOrder,
     onNext: () => stepApi.current?.submit?.(),
     onGoTo: () => stepApi.current?.submit?.(),
   });

@@ -4,9 +4,10 @@ import { TextInput } from './TextInput';
 interface Props extends React.InputHTMLAttributes<HTMLInputElement> {
     items: Record<string, object> | undefined;
     setItems: (items: Record<string, object>) => void;
+    autoFocus?: boolean;
 };
 
-export const NormalizedList: React.FC<Props> = ({ items, setItems, ...otherProps }) => {
+export const NormalizedList: React.FC<Props> = ({ items, setItems, autoFocus, ...otherProps }) => {
     const [itemName, setItemName] = React.useState<string>('');
 
     const addItem = () => {
@@ -26,6 +27,7 @@ export const NormalizedList: React.FC<Props> = ({ items, setItems, ...otherProps
         <>
             <TextInput
                 {...otherProps}
+                autoFocus={autoFocus}
                 type="text"
                 value={itemName}
                 onChange={setItemName as unknown as (value: string | number) => void}
