@@ -79,6 +79,66 @@ function buildWageMonthlyIncomeChart(wageName: string, model: any): {
   };
 }
 
+/**
+ * Build investment projection chart:
+ * - Balance growth with annual compounding and withdrawals after withdrawalDate.
+ * - Monthly withdrawal income line starting at withdrawal year.
+ * Assumptions:
+ *   * Withdrawals taken at end of year after growth based on starting balance of that year.
+ *   * Monthly withdrawal displayed = annual withdrawal / 12 rounded.
+ *   * Balance never drops below 0 (withdrawal capped if necessary).
+ */
+function buildInvestmentBalanceAndWithdrawalChart(investmentName: string, model: any): {
+  beginYear: number;
+  endYear: number;
+  balance: { name: string; values: Record<number, number>; strokeWidth?: number };
+  withdrawal: { name: string; values: Record<number, number | null>; strokeDasharray?: string; strokeWidth?: number };
+} {
+  const investment: any = model?.investments?.[investmentName] || {};
+  const initialBalance: number = Number(investment?.balance) || 0;
+  const rate: number = Number(investment?.rate) || 0; // decimal form
+  const withdrawalDateStr: string | undefined = investment?.withdrawalDate; // MM/DD/YYYY
+  const withdrawalRate: number = Number(investment?.withdrawalRate) || 0; // decimal form
+  const retireDateStr: string | undefined = model?.retireDate;
+  const yearsAfterRetire: number = Number(model?.yearsAfterRetire) || 0;
+  const nowYear = new Date().getFullYear();
+  let retireYear: number | undefined;
+  if (retireDateStr && /\d{2}\/\d{2}\/\d{4}/.test(retireDateStr)) retireYear = Number(retireDateStr.split('/')[2]);
+  const endYear = retireYear ? retireYear + yearsAfterRetire : nowYear + 10; // fallback horizon
+  const beginYear = nowYear;
+  let withdrawalYear: number | undefined;
+  if (withdrawalDateStr && /\d{2}\/\d{2}\/\d{4}/.test(withdrawalDateStr)) withdrawalYear = Number(withdrawalDateStr.split('/')[2]);
+
+  const balanceValues: Record<number, number> = {};
+  const withdrawalMonthlyValues: Record<number, number | null> = {};
+
+  let balanceStartOfYear = initialBalance; // starting balance for current year (end of previous year)
+  for (let y = beginYear; y <= endYear; y++) {
+    // grow
+    const growthAmount = balanceStartOfYear * rate;
+    let balanceAfterGrowth = balanceStartOfYear + growthAmount;
+    // withdrawal (if within or after withdrawalYear)
+    let withdrawalAnnual = 0;
+    if (withdrawalYear !== undefined && y >= withdrawalYear && withdrawalRate > 0) {
+      withdrawalAnnual = balanceStartOfYear * withdrawalRate; // based on starting balance assumption
+      if (withdrawalAnnual > balanceAfterGrowth) withdrawalAnnual = balanceAfterGrowth; // cap
+      balanceAfterGrowth -= withdrawalAnnual;
+      withdrawalMonthlyValues[y] = Math.round(withdrawalAnnual / 12);
+    } else {
+      withdrawalMonthlyValues[y] = null; // null so line starts at first withdrawal year
+    }
+    balanceValues[y] = Math.round(balanceAfterGrowth);
+    balanceStartOfYear = balanceAfterGrowth; // next loop
+  }
+
+  return {
+    beginYear,
+    endYear,
+    balance: { name: `${investmentName} Balance`, values: balanceValues, strokeWidth: 3 },
+    withdrawal: { name: `${investmentName} Monthly Withdrawal`, values: withdrawalMonthlyValues, strokeDasharray: '4 4' }
+  };
+}
+
 function Steps(): JSX.Element {
   // const [skipGoToHandler, setSkipGoToHandler] = React.useState<boolean>(false);
   const { stepApi, stepState } = useActiveStep<StepStateMeta, StepApi>();
@@ -156,20 +216,49 @@ function Steps(): JSX.Element {
 
     ...investmentNames.reduce((acc, investmentName) => ({
       ...acc,
-      [investmentName]: <div className="card">
-        <div className="card-header">Investments</div>
-        <div className="card-subheader">{investmentName}</div>
-        <Form key={`investments.${investmentName}`} model={model ?? {}} setModel={setModel} form={[
-          { name: "Initial Balance", location: `investments.${investmentName}.balance`, validators: [Validators.required], type: "currency" },
-          { name: "Annual % Rate of Return", location: `investments.${investmentName}.rate`, validators: [Validators.required], type: "percent" },
-          {
-            name: "Start Taking Withdrawals Date",
-            location: `investments.${investmentName}.withdrawalDate`,
-            validators: [Validators.required, Validators.isDate],
-            type: "text"
-          },
-        ]} />
-      </div>
+      [investmentName]: (() => {
+        const { beginYear, endYear, balance, withdrawal } = buildInvestmentBalanceAndWithdrawalChart(investmentName, model);
+        return (
+          <div className="card">
+            <div className="card-header">Investments</div>
+            <div className="card-subheader">{investmentName}</div>
+            <div className="flex" style={{ gap: '1rem', alignItems: 'flex-start' }}>
+              <div style={{ flex: '0 0 340px', maxWidth: 400 }}>
+                <Form key={`investments.${investmentName}`} model={model ?? {}} setModel={setModel} form={[
+                  { name: "Initial Balance", location: `investments.${investmentName}.balance`, validators: [Validators.required], type: "currency" },
+                  { name: "Annual % Rate of Return", location: `investments.${investmentName}.rate`, validators: [Validators.required], type: "percent" },
+                  {
+                    name: "Start Taking Withdrawals Date",
+                    location: `investments.${investmentName}.withdrawalDate`,
+                    validators: [Validators.required, Validators.isDate],
+                    type: "text"
+                  },
+                  {
+                    name: "Annual Withdrawal Percentage (%)",
+                    location: `investments.${investmentName}.withdrawalRate`,
+                    validators: [Validators.required],
+                    type: "percent"
+                  }
+                ]} />
+              </div>
+              <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                <FinancialChart
+                  beginYear={beginYear}
+                  endYear={endYear}
+                  valueLabel="Balance"
+                  series={[balance]}
+                />
+                <FinancialChart
+                  beginYear={beginYear}
+                  endYear={endYear}
+                  valueLabel="Monthly Withdrawal"
+                  series={[withdrawal]}
+                />
+              </div>
+            </div>
+          </div>
+        );
+      })()
     }), {} as Record<string, JSX.Element>),
 
     ...annuityNames.reduce((acc, annuityName) => ({
