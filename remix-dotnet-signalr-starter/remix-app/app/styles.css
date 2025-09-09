@@ -54,7 +54,7 @@ label { display:flex; flex-direction:column; font-size:.85rem; gap:.25rem; margi
 .form-control:focus { outline:none; border-color: var(--color-primary); box-shadow: var(--focus-ring); }
 .form-control.is-invalid, .is-invalid.form-control { border-color: var(--color-danger); }
 .errors { list-style:none; padding:0; margin:.2rem 0 .4rem; }
-.errors li { font-size:.7rem; color: var(--color-danger); background: var(--color-danger-bg); padding:.35rem .5rem; border-radius: var(--radius-xs); line-height:1.2; }
+.errors li { font-size:.7rem; color: var(--color-danger); /* background removed per request */ background: none; padding:.35rem .5rem; border-radius: var(--radius-xs); line-height:1.2; }
 
 /* Stepper */
 .stepper { display:flex; align-items:center; gap:.75rem; flex-wrap:wrap; margin-bottom:1.25rem; }
