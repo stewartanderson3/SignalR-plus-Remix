@@ -139,6 +139,45 @@ function buildInvestmentBalanceAndWithdrawalChart(investmentName: string, model:
   };
 }
 
+/**
+ * Build annuity monthly income chart:
+ * - Shows monthly payment beginning at startDate year through planning horizon (retireYear + yearsAfterRetire or +10 fallback).
+ * - Years before start year are null so the line begins cleanly.
+ */
+function buildAnnuityMonthlyIncomeChart(annuityName: string, model: any): {
+  beginYear: number;
+  endYear: number;
+  valueLabel: string;
+  series: { name: string; values: Record<number, number | null>; strokeWidth?: number }[];
+} {
+  const annuity: any = model?.annuities?.[annuityName] || {};
+  const monthly: number = Number(annuity?.monthly) || 0;
+  const startDateStr: string | undefined = annuity?.startDate;
+  const nowYear = new Date().getFullYear();
+  const retireDateStr: string | undefined = model?.retireDate;
+  const yearsAfterRetire: number = Number(model?.yearsAfterRetire) || 0;
+  let retireYear: number | undefined;
+  if (retireDateStr && /\d{2}\/\d{2}\/\d{4}/.test(retireDateStr)) retireYear = Number(retireDateStr.split('/')[2]);
+  const endYear = retireYear ? retireYear + yearsAfterRetire : nowYear + 10;
+  const beginYear = nowYear;
+  let startYear: number | undefined;
+  if (startDateStr && /\d{2}\/\d{2}\/\d{4}/.test(startDateStr)) startYear = Number(startDateStr.split('/')[2]);
+  const values: Record<number, number | null> = {};
+  for (let y = beginYear; y <= endYear; y++) {
+    if (startYear !== undefined && y >= startYear) {
+      values[y] = monthly ? Math.round(monthly) : 0;
+    } else {
+      values[y] = null; // so line starts at first payment year
+    }
+  }
+  return {
+    beginYear,
+    endYear,
+    valueLabel: 'Monthly Income',
+    series: [{ name: `${annuityName} Monthly Income`, values, strokeWidth: 3 }]
+  };
+}
+
 function Steps(): JSX.Element {
   // const [skipGoToHandler, setSkipGoToHandler] = React.useState<boolean>(false);
   const { stepApi, stepState } = useActiveStep<StepStateMeta, StepApi>();
@@ -263,19 +302,31 @@ function Steps(): JSX.Element {
 
     ...annuityNames.reduce((acc, annuityName) => ({
       ...acc,
-      [annuityName]: <div className="card">
-        <div className="card-header">Annuities</div>
-        <div className="card-subheader">{annuityName}</div>
-        <Form key={`annuities.${annuityName}`} model={model ?? {}} setModel={setModel} form={[
-          { name: "$ / month", location: `annuities.${annuityName}.monthly`, validators: [], type: "currency" },
-          {
-            name: "Start Date",
-            location: `annuities.${annuityName}.startDate`,
-            validators: [Validators.required, Validators.isDate],
-            type: "text"
-          },
-        ]} />
-      </div>
+      [annuityName]: (() => {
+        const chartProps = buildAnnuityMonthlyIncomeChart(annuityName, model);
+        return (
+          <div className="card">
+            <div className="card-header">Annuities</div>
+            <div className="card-subheader">{annuityName}</div>
+            <div className="flex" style={{ gap: '1rem', alignItems: 'flex-start' }}>
+              <div style={{ flex: '0 0 340px', maxWidth: 400 }}>
+                <Form key={`annuities.${annuityName}`} model={model ?? {}} setModel={setModel} form={[
+                  { name: "$ / month", location: `annuities.${annuityName}.monthly`, validators: [], type: "currency" },
+                  {
+                    name: "Start Date",
+                    location: `annuities.${annuityName}.startDate`,
+                    validators: [Validators.required, Validators.isDate],
+                    type: "text"
+                  },
+                ]} />
+              </div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <FinancialChart {...chartProps} />
+              </div>
+            </div>
+          </div>
+        );
+      })()
     }), {} as Record<string, JSX.Element>),
 
   };
