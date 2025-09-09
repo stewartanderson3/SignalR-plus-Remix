@@ -168,13 +168,13 @@ function Steps(): JSX.Element {
               Skip
             </button>
           )} */}
-          <button
+          {!isLastStep && <button
             className="btn btn-primary"
             onClick={errorHandled(next)}
             disabled={stepState?.isLoading || isLastStep}
           >
-            {isLastStep ? 'Finish' : 'Next'}
-          </button>
+            Next
+          </button>}
         </div>
       </div>
 
