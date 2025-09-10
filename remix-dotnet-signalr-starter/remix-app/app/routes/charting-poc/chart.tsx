@@ -50,9 +50,7 @@ export default function FinancialChart({
   const years = useMemo(() => Array.from({ length: maxYear - minYear + 1 }, (_, i) => minYear + i), [minYear, maxYear]);
 
   const normalizedSeries = useMemo(() => {
-    // Assign consistent colors
-    const colorPalette = ['#2563eb', '#dc2626', '#059669', '#7c3aed', '#d97706', '#0d9488'];
-    // Build per-series normalized arrays first
+    const colorPalette = ['var(--color-primary)', '#dc2626', '#059669', '#7c3aed', '#d97706', '#0d9488'];
     return series.map((s, idx) => {
       const defaultColor = colorPalette[idx % colorPalette.length];
       const points = toArrayPoints(s.values);
@@ -118,8 +116,8 @@ export default function FinancialChart({
   return (
     <div style={outerStyle}>
       <ResponsiveContainer>
-  <LineChart data={axisData} margin={{ top: 10, right: 24, left: 8, bottom: 8 }}>
-          <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
+        <LineChart data={axisData} margin={{ top: 10, right: 24, left: 8, bottom: 8 }}>
+          <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" />
           <XAxis
             dataKey="year"
             type="number"
@@ -127,7 +125,7 @@ export default function FinancialChart({
             ticks={years}
             tick={{ fontSize: 12 }}
             tickLine={false}
-            axisLine={{ stroke: '#6b7280' }}
+            axisLine={{ stroke: 'var(--color-border)' }}
           />
           <YAxis
             type="number"
@@ -136,15 +134,15 @@ export default function FinancialChart({
             tickFormatter={(n: number) => formatter.format(n)}
             width={80}
             tickLine={false}
-            axisLine={{ stroke: '#6b7280' }}
+            axisLine={{ stroke: 'var(--color-border)' }}
           />
           <Tooltip
             formatter={tooltipFormatter}
             labelFormatter={tooltipLabelFormatter}
-            contentStyle={{ background: '#111827', border: '1px solid #374151', borderRadius: 6, color: '#f9fafb', boxShadow: '0 4px 10px rgba(0,0,0,.25)', padding: '8px 10px' }}
-            itemStyle={{ color: '#f9fafb', fontSize: 12, lineHeight: 1.2 }}
-            labelStyle={{ color: '#93c5fd', fontSize: 11, fontWeight: 500, marginBottom: 4 }}
-            cursor={{ stroke: '#6b7280', strokeWidth: 1, strokeDasharray: '3 3' }}
+            contentStyle={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: 6, color: 'var(--color-text)', boxShadow: '0 4px 12px rgba(0,0,0,.08)', padding: '8px 10px' }}
+            itemStyle={{ color: 'var(--color-text)', fontSize: 12, lineHeight: 1.2 }}
+            labelStyle={{ color: 'var(--color-primary)', fontSize: 11, fontWeight: 500, marginBottom: 4 }}
+            cursor={{ stroke: 'var(--color-border)', strokeWidth: 1, strokeDasharray: '3 3' }}
             wrapperStyle={{ outline: 'none' }}
           />
           <Legend wrapperStyle={{ fontSize: 12 }} />
