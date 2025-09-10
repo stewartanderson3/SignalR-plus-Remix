@@ -57,12 +57,11 @@ const Validators = {
 
 
 function Steps(): JSX.Element {
-  // const [skipGoToHandler, setSkipGoToHandler] = React.useState<boolean>(false);
   const { stepApi, stepState } = useActiveStep<StepStateMeta, StepApi>();
   const [model, setModel] = useLocalStorageState<Record<string, unknown>>("retirement");
-  const wageNames = Object.keys(model?.wages ?? {}).sort();
-  const investmentNames = Object.keys(model?.investments ?? {}).sort();
-  const annuityNames = Object.keys(model?.annuities ?? {}).sort();
+  const wageNames = Object.keys((model as any)?.wages?.items || {}).sort();
+  const investmentNames = Object.keys((model as any)?.investments?.items || {}).sort();
+  const annuityNames = Object.keys((model as any)?.annuities?.items || {}).sort();
   const dynamicStepNames = [
     ...wageNames,
     ...investmentNames,
@@ -106,9 +105,9 @@ function Steps(): JSX.Element {
       <div className="card">
         <div className="card-header">Setup</div>
         <Form key="setup" model={model ?? {}} setModel={setModel} form={[
-          { name: "Current Wages & Salaries", placeholder: "[Company Name]", location: "wages", validators: [Validators.required], type: "list" },
-          { name: "Investments", placeholder: "[Investment Name]", location: "investments", validators: [Validators.required], type: "list" },
-          { name: "Annuities", placeholder: "[Annuity Name]", location: "annuities", validators: [Validators.required], type: "list" }
+          { name: "Current Wages & Salaries", placeholder: "[Company Name]", location: "wages.items", validators: [Validators.required], type: "list" },
+          { name: "Investments", placeholder: "[Investment Name]", location: "investments.items", validators: [Validators.required], type: "list" },
+          { name: "Annuities", placeholder: "[Annuity Name]", location: "annuities.items", validators: [Validators.required], type: "list" }
         ]} />
       </div>
     ),
@@ -123,12 +122,12 @@ function Steps(): JSX.Element {
             <div className="card-subheader">{wageName}</div>
             <div className="flex" style={{ gap: '1rem', alignItems: 'flex-start' }}>
               <div style={{ flex: '0 0 340px', maxWidth: 400 }}>
-                <Form key={`wages.${wageName}`} model={model ?? {}} setModel={setModel} form={[
-                  { name: "$ / year", location: `wages.${wageName}.annual`, validators: [Validators.required], type: "currency" },
-                  { name: "Average Annual % Raise", location: `wages.${wageName}.raise`, validators: [Validators.required], type: "percent" },
+                <Form key={`wages.items.${wageName}`} model={model ?? {}} setModel={setModel} form={[
+                  { name: "$ / year", location: `wages.items.${wageName}.annual`, validators: [Validators.required], type: "currency" },
+                  { name: "Average Annual % Raise", location: `wages.items.${wageName}.raise`, validators: [Validators.required], type: "percent" },
                   {
                     name: "Anticipated Date to Stop Work",
-                    location: `wages.${wageName}.stopWorkDate`,
+                    location: `wages.items.${wageName}.stopWorkDate`,
                     validators: [Validators.required, Validators.isFutureOrCurrentDate],
                     type: "text"
                   },
@@ -153,18 +152,18 @@ function Steps(): JSX.Element {
             <div className="card-subheader">{investmentName}</div>
             <div className="flex" style={{ gap: '1rem', alignItems: 'flex-start' }}>
               <div style={{ flex: '0 0 340px', maxWidth: 400 }}>
-                <Form key={`investments.${investmentName}`} model={model ?? {}} setModel={setModel} form={[
-                  { name: "Initial Balance", location: `investments.${investmentName}.balance`, validators: [Validators.required], type: "currency" },
-                  { name: "Annual % Rate of Return", location: `investments.${investmentName}.rate`, validators: [Validators.required], type: "percent" },
+                <Form key={`investments.items.${investmentName}`} model={model ?? {}} setModel={setModel} form={[
+                  { name: "Initial Balance", location: `investments.items.${investmentName}.balance`, validators: [Validators.required], type: "currency" },
+                  { name: "Annual % Rate of Return", location: `investments.items.${investmentName}.rate`, validators: [Validators.required], type: "percent" },
                   {
                     name: "Start Taking Withdrawals Date",
-                    location: `investments.${investmentName}.withdrawalDate`,
+                    location: `investments.items.${investmentName}.withdrawalDate`,
                     validators: [Validators.required, Validators.isDate],
                     type: "text"
                   },
                   {
                     name: "Annual Withdrawal Percentage (%)",
-                    location: `investments.${investmentName}.withdrawalRate`,
+                    location: `investments.items.${investmentName}.withdrawalRate`,
                     validators: [Validators.required],
                     type: "percent"
                   }
@@ -200,11 +199,11 @@ function Steps(): JSX.Element {
             <div className="card-subheader">{annuityName}</div>
             <div className="flex" style={{ gap: '1rem', alignItems: 'flex-start' }}>
               <div style={{ flex: '0 0 340px', maxWidth: 400 }}>
-                <Form key={`annuities.${annuityName}`} model={model ?? {}} setModel={setModel} form={[
-                  { name: "$ / month", location: `annuities.${annuityName}.monthly`, validators: [], type: "currency" },
+                <Form key={`annuities.items.${annuityName}`} model={model ?? {}} setModel={setModel} form={[
+                  { name: "$ / month", location: `annuities.items.${annuityName}.monthly`, validators: [], type: "currency" },
                   {
                     name: "Start Date",
-                    location: `annuities.${annuityName}.startDate`,
+                    location: `annuities.items.${annuityName}.startDate`,
                     validators: [Validators.required, Validators.isDate],
                     type: "text"
                   },

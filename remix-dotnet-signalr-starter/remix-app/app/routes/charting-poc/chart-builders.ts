@@ -7,7 +7,7 @@ export function buildWageMonthlyIncomeChart(wageName: string, model: any): {
   valueLabel: string;
   series: { name: string; values: Record<number, number>; strokeWidth?: number; strokeDasharray?: string }[];
 } {
-  const wageData: any = model?.wages?.[wageName] || {};
+  const wageData: any = (model as any)?.wages?.items?.[wageName] || {};
   const annual: number = Number(wageData?.annual) || 0;
   const raise: number = Number(wageData?.raise) || 0; // decimal form (0.02 = 2%)
   const taxRate: number = Number((model as any)?.taxPercentage) || 0;
@@ -59,7 +59,8 @@ export function buildInvestmentBalanceAndWithdrawalChart(investmentName: string,
   balance: { name: string; values: Record<number, number>; strokeWidth?: number };
   withdrawalSeries: { name: string; values: Record<number, number | null>; strokeDasharray?: string; strokeWidth?: number }[];
 } {
-  const investment: any = model?.investments?.[investmentName] || {};
+  const investmentRoot: any = (model as any)?.investments;
+  const investment: any = investmentRoot?.items?.[investmentName] || (investmentRoot && !('items' in investmentRoot) ? investmentRoot?.[investmentName] : {}) || {};
   const initialBalance: number = Number(investment?.balance) || 0;
   const rate: number = Number(investment?.rate) || 0; // decimal form
   const withdrawalDateStr: string | undefined = investment?.withdrawalDate; // MM/DD/YYYY
@@ -130,7 +131,7 @@ export function buildAnnuityMonthlyIncomeChart(annuityName: string, model: any):
   valueLabel: string;
   series: { name: string; values: Record<number, number | null>; strokeWidth?: number; strokeDasharray?: string }[];
 } {
-  const annuity: any = model?.annuities?.[annuityName] || {};
+  const annuity: any = (model as any)?.annuities?.items?.[annuityName] || {};
   const monthly: number = Number(annuity?.monthly) || 0;
   const startDateStr: string | undefined = annuity?.startDate;
   const nowYear = new Date().getFullYear();
@@ -182,7 +183,16 @@ export function buildTotalInvestmentAggregates(model: any): {
   balanceSeries: { name: string; values: Record<number, number | null>; strokeWidth?: number; strokeDasharray?: string }[];
   withdrawalSeries: { name: string; values: Record<number, number | null>; strokeWidth?: number; strokeDasharray?: string }[];
 } {
-  const investmentNames: string[] = Object.keys(model?.investments ?? {}).sort();
+  const invRoot: any = (model as any)?.investments;
+  let investmentNames: string[] = [];
+  if (invRoot) {
+    if (invRoot.items && typeof invRoot.items === 'object') {
+      investmentNames = Object.keys(invRoot.items).sort();
+    } else if (!('items' in invRoot) && typeof invRoot === 'object') {
+      // legacy
+      investmentNames = Object.keys(invRoot).sort();
+    }
+  }
   const taxRate: number = Number(model?.taxPercentage) || 0;
   const inflRate: number = Number(model?.inflationPercentage) || 0;
   if (!investmentNames.length) {
