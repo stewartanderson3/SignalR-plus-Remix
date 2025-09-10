@@ -264,7 +264,12 @@ function Steps(): JSX.Element {
 
   };
 
-  const stepOrder = ["Planning", "Setup", ...dynamicStepNames, "Summary"];
+  const stepOrder = [
+    "Planning",
+    "Setup",
+    ...dynamicStepNames,
+    dynamicStepNames.length > 0 ? "Summary" : null
+  ].filter(Boolean);
 
   const {
     activeStep,
