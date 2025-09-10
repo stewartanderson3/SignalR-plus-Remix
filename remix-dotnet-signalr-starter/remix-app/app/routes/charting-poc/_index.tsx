@@ -182,7 +182,7 @@ function Steps(): JSX.Element {
                       type: "percent"
                     }
                     : null
-                ].filter(Boolean)} />
+                ].filter(Boolean) as any} />
               </div>
               <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
                 <FinancialChart
@@ -240,19 +240,41 @@ function Steps(): JSX.Element {
           <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
             {(() => {
               const agg = buildTotalInvestmentAggregates(model);
+              const realBalance = agg.balanceSeries
+                .filter(s => /After Tax & Inflation$/.test(s.name))
+                .map(s => ({ ...s, strokeDasharray: undefined, color: '#059669', strokeWidth: 3 }));
+              const realWithdrawal = agg.withdrawalSeries
+                .filter(s => /After Tax & Inflation$/.test(s.name))
+                .map(s => ({ ...s, strokeDasharray: undefined, color: '#059669', strokeWidth: 3 }));
               return (
                 <>
-                  <FinancialChart
-                    beginYear={agg.beginYear}
-                    endYear={agg.endYear}
-                    valueLabel="Balance"
-                    series={agg.balanceSeries}
-                  />
+                  {realWithdrawal.length > 0 && (
+                    <FinancialChart
+                      beginYear={agg.beginYear}
+                      endYear={agg.endYear}
+                      valueLabel="Real Monthly Withdrawal (After Tax & Inflation)"
+                      series={realWithdrawal}
+                    />
+                  )}
+                  {realBalance.length > 0 && (
+                    <FinancialChart
+                      beginYear={agg.beginYear}
+                      endYear={agg.endYear}
+                      valueLabel="Real Balance (After Tax & Inflation)"
+                      series={realBalance}
+                    />
+                  )}
                   <FinancialChart
                     beginYear={agg.beginYear}
                     endYear={agg.endYear}
                     valueLabel="Monthly Withdrawal"
                     series={agg.withdrawalSeries}
+                  />
+                  <FinancialChart
+                    beginYear={agg.beginYear}
+                    endYear={agg.endYear}
+                    valueLabel="Balance"
+                    series={agg.balanceSeries}
                   />
                 </>
               );
@@ -264,12 +286,12 @@ function Steps(): JSX.Element {
 
   };
 
-  const stepOrder = [
+  const stepOrder = ([
     "Planning",
     "Setup",
     ...dynamicStepNames,
     dynamicStepNames.length > 0 ? "Summary" : null
-  ].filter(Boolean);
+  ].filter(Boolean) as string[]);
 
   const {
     activeStep,
@@ -299,7 +321,7 @@ function Steps(): JSX.Element {
         <div className="flex space-between align-center">
           <div style={{ display: 'flex', flexDirection: 'column', gap: '.5rem', flex: 1 }}>
             <div className="stepper" role="tablist" aria-label="Wizard Steps">
-              {stepOrder.map((stepName, i) => (
+              {stepOrder.map((stepName: string, i) => (
                 <button
                   type="button"
                   role="tab"
