@@ -221,6 +221,84 @@ function buildAnnuityMonthlyIncomeChart(annuityName: string, model: any): {
   };
 }
 
+/**
+ * Build TOTAL investment balance + withdrawal chart (single multi-line chart):
+ * Lines:
+ *  - Total Investment Balance
+ *  - Total Investment Balance After Tax
+ *  - Total Investment Balance After Tax & Inflation
+ *  - Total Monthly Withdrawal
+ *  - Total Monthly Withdrawal After Tax
+ *  - Total Monthly Withdrawal After Tax & Inflation
+ * Implementation detail:
+ *  Re-uses per-investment builder so logic stays consistent and centralized. We sum per-year values.
+ */
+function buildTotalInvestmentAggregates(model: any): {
+  beginYear: number;
+  endYear: number;
+  balanceSeries: { name: string; values: Record<number, number | null>; strokeWidth?: number; strokeDasharray?: string }[];
+  withdrawalSeries: { name: string; values: Record<number, number | null>; strokeWidth?: number; strokeDasharray?: string }[];
+} {
+  const investmentNames: string[] = Object.keys(model?.investments ?? {}).sort();
+  const taxRate: number = Number(model?.taxPercentage) || 0;
+  const inflRate: number = Number(model?.inflationPercentage) || 0;
+  if (!investmentNames.length) {
+    const nowYear = new Date().getFullYear();
+    return { beginYear: nowYear, endYear: nowYear, balanceSeries: [], withdrawalSeries: [] };
+  }
+  const per = investmentNames.map((n) => buildInvestmentBalanceAndWithdrawalChart(n, model));
+  const beginYear = per.reduce((min, p) => Math.min(min, p.beginYear), per[0].beginYear);
+  const endYear = per.reduce((max, p) => Math.max(max, p.endYear), per[0].endYear);
+
+  const totalBalance: Record<number, number> = {};
+  const totalBalanceAfterTax: Record<number, number> = {};
+  const totalBalanceRealAfterTax: Record<number, number> = {};
+  const totalWithdrawalGross: Record<number, number | null> = {};
+  const totalWithdrawalAfterTax: Record<number, number | null> = {};
+  const totalWithdrawalRealAfterTax: Record<number, number | null> = {};
+
+  for (let y = beginYear; y <= endYear; y++) {
+    let balSum = 0;
+    per.forEach(p => { const v = p.balance.values[y]; if (typeof v === 'number') balSum += v; });
+    totalBalance[y] = balSum;
+    const afterTaxBal = balSum * (1 - taxRate);
+    totalBalanceAfterTax[y] = Math.round(afterTaxBal);
+    totalBalanceRealAfterTax[y] = Math.round(afterTaxBal / Math.pow(1 + inflRate, y - beginYear));
+
+    let anyWithdrawal = false;
+    let wGross = 0; let wAfterTax = 0; let wRealAfterTax = 0;
+    per.forEach(p => {
+      const grossSeries = p.withdrawalSeries[0]?.values;
+      const afterTaxSeries = p.withdrawalSeries[1]?.values;
+      const realAfterTaxSeries = p.withdrawalSeries[2]?.values;
+      const g = grossSeries ? grossSeries[y] : null;
+      const at = afterTaxSeries ? afterTaxSeries[y] : null;
+      const rat = realAfterTaxSeries ? realAfterTaxSeries[y] : null;
+      if (typeof g === 'number') { anyWithdrawal = true; wGross += g; }
+      if (typeof at === 'number') wAfterTax += at;
+      if (typeof rat === 'number') wRealAfterTax += rat;
+    });
+    totalWithdrawalGross[y] = anyWithdrawal ? Math.round(wGross) : null;
+    totalWithdrawalAfterTax[y] = anyWithdrawal ? Math.round(wAfterTax) : null;
+    totalWithdrawalRealAfterTax[y] = anyWithdrawal ? Math.round(wRealAfterTax) : null;
+  }
+
+  return {
+    beginYear,
+    endYear,
+    balanceSeries: [
+      { name: 'Total Investment Balance', values: totalBalance, strokeWidth: 3 },
+      { name: 'Total Investment Balance After Tax', values: totalBalanceAfterTax, strokeDasharray: '5 4' },
+      { name: 'Total Investment Balance After Tax & Inflation', values: totalBalanceRealAfterTax, strokeDasharray: '2 3' },
+    ],
+    withdrawalSeries: [
+      { name: 'Total Monthly Withdrawal', values: totalWithdrawalGross, strokeDasharray: '4 4' },
+      { name: 'Total Monthly Withdrawal After Tax', values: totalWithdrawalAfterTax, strokeDasharray: '5 3' },
+      { name: 'Total Monthly Withdrawal After Tax & Inflation', values: totalWithdrawalRealAfterTax, strokeDasharray: '2 3' },
+    ]
+  };
+}
+
 function Steps(): JSX.Element {
   // const [skipGoToHandler, setSkipGoToHandler] = React.useState<boolean>(false);
   const { stepApi, stepState } = useActiveStep<StepStateMeta, StepApi>();
@@ -311,7 +389,7 @@ function Steps(): JSX.Element {
     ...investmentNames.reduce((acc, investmentName) => ({
       ...acc,
       [investmentName]: (() => {
-  const { beginYear, endYear, balance, withdrawalSeries } = buildInvestmentBalanceAndWithdrawalChart(investmentName, model);
+        const { beginYear, endYear, balance, withdrawalSeries } = buildInvestmentBalanceAndWithdrawalChart(investmentName, model);
         return (
           <div className="card">
             <div className="card-header">Investments</div>
@@ -384,9 +462,38 @@ function Steps(): JSX.Element {
       })()
     }), {} as Record<string, JSX.Element>),
 
+    Summary: (
+      <div className="card">
+        <div className="card-header">Summary</div>
+        <div className="card-body">
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+            {(() => {
+              const agg = buildTotalInvestmentAggregates(model);
+              return (
+                <>
+                  <FinancialChart
+                    beginYear={agg.beginYear}
+                    endYear={agg.endYear}
+                    valueLabel="Balance"
+                    series={agg.balanceSeries}
+                  />
+                  <FinancialChart
+                    beginYear={agg.beginYear}
+                    endYear={agg.endYear}
+                    valueLabel="Monthly Withdrawal"
+                    series={agg.withdrawalSeries}
+                  />
+                </>
+              );
+            })()}
+          </div>
+        </div>
+      </div>
+    )
+
   };
 
-  const stepOrder = ["Planning", "Setup", ...dynamicStepNames];
+  const stepOrder = ["Planning", "Setup", ...dynamicStepNames, "Summary"];
 
   const {
     activeStep,
