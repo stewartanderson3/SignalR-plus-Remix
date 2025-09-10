@@ -8,7 +8,7 @@ import {
   buildAnnuityMonthlyIncomeChart,
   buildTotalInvestmentAggregates
 } from "./chart-builders";
-import { useLocalStorageState } from "leaf-validator";
+import { get, useLocalStorageState } from "leaf-validator";
 
 const errorHandled = (action: () => Promise<void>) => async (): Promise<void> => {
   try {
@@ -166,8 +166,22 @@ function Steps(): JSX.Element {
                     location: `investments.items.${investmentName}.withdrawalRate`,
                     validators: [Validators.required],
                     type: "percent"
-                  }
-                ]} />
+                  },
+                  {
+                    name: "Contributions From",
+                    location: `investments.items.${investmentName}.contributionsFrom`,
+                    type: "select",
+                    items: wageNames
+                  },
+                  get(`investments.items.${investmentName}.contributionsFrom.length`).from(model) as any > 0
+                    ? {
+                      name: "Annual Contribution Percentage (%)",
+                      location: `investments.items.${investmentName}.contributionRate`,
+                      validators: [Validators.required],
+                      type: "percent"
+                    }
+                    : null
+                ].filter(Boolean)} />
               </div>
               <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
                 <FinancialChart

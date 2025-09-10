@@ -1,6 +1,16 @@
 // Centralized chart builder utility functions extracted from _index.tsx
 // Each function returns the data shape expected by the FinancialChart component.
 
+// Defensive helper: user/model percent values should already be fractional (0.0925 for 9.25%).
+// If a legacy or corrupted model stores 9.25 instead, we auto-normalize.
+function normalizePct(val: any): number {
+  const n = Number(val) || 0;
+  if (!isFinite(n)) return 0;
+  if (n > 1) return n / 100; // treat as whole percent
+  if (n < -1) return n / 100; // negative percent edge
+  return n;
+}
+
 export function buildWageMonthlyIncomeChart(wageName: string, model: any): {
   beginYear: number;
   endYear: number;
@@ -9,14 +19,19 @@ export function buildWageMonthlyIncomeChart(wageName: string, model: any): {
 } {
   const wageData: any = (model as any)?.wages?.items?.[wageName] || {};
   const annual: number = Number(wageData?.annual) || 0;
-  const raise: number = Number(wageData?.raise) || 0; // decimal form (0.02 = 2%)
-  const taxRate: number = Number((model as any)?.taxPercentage) || 0;
-  const inflRate: number = Number((model as any)?.inflationPercentage) || 0;
+  // Percent inputs are already stored as fractional decimals (e.g. 0.0925) by the percent TextInput component.
+  const raise: number = normalizePct(wageData?.raise);
+  const taxRate: number = normalizePct((model as any)?.taxPercentage);
+  const inflRate: number = normalizePct((model as any)?.inflationPercentage);
   const stopWorkDateStr: string | undefined = wageData?.stopWorkDate;
   const beginYear = new Date().getFullYear();
   let endYear = beginYear;
+  const planningHorizonYears = Number((model as any)?.planningHorizonYears) || undefined;
   if (stopWorkDateStr && /\d{2}\/\d{2}\/\d{4}/.test(stopWorkDateStr)) {
     endYear = Number(stopWorkDateStr.split('/')[2]) || beginYear;
+  }
+  if (planningHorizonYears && planningHorizonYears > 0) {
+    endYear = beginYear + planningHorizonYears - 1;
   }
   if (endYear < beginYear) endYear = beginYear; // guard
   const grossValues: Record<number, number> = {};
@@ -62,20 +77,44 @@ export function buildInvestmentBalanceAndWithdrawalChart(investmentName: string,
   const investmentRoot: any = (model as any)?.investments;
   const investment: any = investmentRoot?.items?.[investmentName] || (investmentRoot && !('items' in investmentRoot) ? investmentRoot?.[investmentName] : {}) || {};
   const initialBalance: number = Number(investment?.balance) || 0;
-  const rate: number = Number(investment?.rate) || 0; // decimal form
+  const rate: number = normalizePct(investment?.rate);
   const withdrawalDateStr: string | undefined = investment?.withdrawalDate; // MM/DD/YYYY
-  const withdrawalRate: number = Number(investment?.withdrawalRate) || 0; // decimal form
-  const taxRate: number = Number((model as any)?.taxPercentage) || 0;
-  const inflRate: number = Number((model as any)?.inflationPercentage) || 0;
+  const withdrawalRate: number = normalizePct(investment?.withdrawalRate);
+  // New contributions inputs
+  // contributionsFrom is a wage name (selected from wages list), not a date. We contribute a % of that wage's annual amount (with raises) each year until the wage stopWorkDate.
+  const contributionsFromWage: string | undefined = investment?.contributionsFrom; // wage name
+  const contributionRate: number = normalizePct(investment?.contributionRate);
+  const taxRate: number = normalizePct((model as any)?.taxPercentage);
+  const inflRate: number = normalizePct((model as any)?.inflationPercentage);
   const retireDateStr: string | undefined = model?.retireDate;
   const yearsAfterRetire: number = Number(model?.yearsAfterRetire) || 0;
+  const planningHorizonYears = Number((model as any)?.planningHorizonYears) || undefined;
   const nowYear = new Date().getFullYear();
+  const beginYear = nowYear;
   let retireYear: number | undefined;
   if (retireDateStr && /\d{2}\/\d{2}\/\d{4}/.test(retireDateStr)) retireYear = Number(retireDateStr.split('/')[2]);
-  const endYear = retireYear ? retireYear + yearsAfterRetire : nowYear + 10; // fallback horizon
-  const beginYear = nowYear;
+  let endYear = retireYear ? retireYear + yearsAfterRetire : nowYear + 10; // fallback horizon
+  if (planningHorizonYears && planningHorizonYears > 0) {
+    endYear = beginYear + planningHorizonYears - 1;
+  }
   let withdrawalYear: number | undefined;
   if (withdrawalDateStr && /\d{2}\/\d{2}\/\d{4}/.test(withdrawalDateStr)) withdrawalYear = Number(withdrawalDateStr.split('/')[2]);
+
+  // Wage reference (if any) for contributions
+  let wageAnnualBase = 0;
+  let wageRaise = 0;
+  let wageStopWorkYear: number | undefined;
+  if (contributionsFromWage) {
+    const wageData: any = (model as any)?.wages?.items?.[contributionsFromWage];
+    if (wageData) {
+      wageAnnualBase = Number(wageData.annual) || 0;
+      wageRaise = normalizePct(wageData.raise);
+      const swd: string | undefined = wageData.stopWorkDate;
+      if (swd && /\d{2}\/\d{2}\/\d{4}/.test(swd)) wageStopWorkYear = Number(swd.split('/')[2]);
+    }
+  }
+
+  const enableLegacyBalancePctFallback = false;
 
   const balanceValues: Record<number, number> = {};
   const withdrawalMonthlyValues: Record<number, number | null> = {};
@@ -84,10 +123,31 @@ export function buildInvestmentBalanceAndWithdrawalChart(investmentName: string,
 
   let balanceStartOfYear = initialBalance; // starting balance for current year (end of previous year)
   for (let y = beginYear; y <= endYear; y++) {
-    // grow
-    const growthAmount = balanceStartOfYear * rate;
-    let balanceAfterGrowth = balanceStartOfYear + growthAmount;
-    // withdrawal (if within or after withdrawalYear)
+    // 1. Contribution at start of year.
+    // If wage referenced: contribution = wageAnnualForYear * contributionRate (only through wage stopWorkYear).
+    // Else (legacy fallback): contribution = starting balance * contributionRate.
+    let contributionAnnual = 0;
+    if (contributionRate > 0) {
+      if (contributionsFromWage && wageAnnualBase > 0) {
+        const withinWageYears = wageStopWorkYear === undefined || y <= wageStopWorkYear;
+        if (withinWageYears) {
+          const wageAnnualForYear = wageAnnualBase * Math.pow(1 + wageRaise, y - beginYear);
+          contributionAnnual = wageAnnualForYear * contributionRate;
+        }
+      } else if (enableLegacyBalancePctFallback) {
+        // Legacy (disabled) interpretation: percentage of starting balance each year (compounds contributions)
+        contributionAnnual = balanceStartOfYear * contributionRate;
+      }
+    }
+    const balanceAfterContribution = balanceStartOfYear + contributionAnnual;
+
+    // 2. Growth on post-contribution balance (continuous compounding)
+    // Continuous: A * e^{r} => growth portion = A * (e^{r} - 1)
+    const growthAmount = balanceAfterContribution * (Math.exp(rate) - 1);
+    let balanceAfterGrowth = balanceAfterContribution + growthAmount;
+
+
+    // 3. Withdrawal (if within or after withdrawalYear)
     let withdrawalAnnual = 0;
     if (withdrawalYear !== undefined && y >= withdrawalYear && withdrawalRate > 0) {
       withdrawalAnnual = balanceStartOfYear * withdrawalRate; // based on starting balance assumption
@@ -137,12 +197,16 @@ export function buildAnnuityMonthlyIncomeChart(annuityName: string, model: any):
   const nowYear = new Date().getFullYear();
   const retireDateStr: string | undefined = model?.retireDate;
   const yearsAfterRetire: number = Number(model?.yearsAfterRetire) || 0;
-  const taxRate: number = Number((model as any)?.taxPercentage) || 0;
-  const inflRate: number = Number((model as any)?.inflationPercentage) || 0;
+  const planningHorizonYears = Number((model as any)?.planningHorizonYears) || undefined;
+  const taxRate: number = normalizePct((model as any)?.taxPercentage);
+  const inflRate: number = normalizePct((model as any)?.inflationPercentage);
   let retireYear: number | undefined;
   if (retireDateStr && /\d{2}\/\d{2}\/\d{4}/.test(retireDateStr)) retireYear = Number(retireDateStr.split('/')[2]);
-  const endYear = retireYear ? retireYear + yearsAfterRetire : nowYear + 10;
   const beginYear = nowYear;
+  let endYear = retireYear ? retireYear + yearsAfterRetire : nowYear + 10;
+  if (planningHorizonYears && planningHorizonYears > 0) {
+    endYear = beginYear + planningHorizonYears - 1;
+  }
   let startYear: number | undefined;
   if (startDateStr && /\d{2}\/\d{2}\/\d{4}/.test(startDateStr)) startYear = Number(startDateStr.split('/')[2]);
   const grossValues: Record<number, number | null> = {};
@@ -193,8 +257,8 @@ export function buildTotalInvestmentAggregates(model: any): {
       investmentNames = Object.keys(invRoot).sort();
     }
   }
-  const taxRate: number = Number(model?.taxPercentage) || 0;
-  const inflRate: number = Number(model?.inflationPercentage) || 0;
+  const taxRateAgg: number = normalizePct(model?.taxPercentage);
+  const inflRateAgg: number = normalizePct(model?.inflationPercentage);
   if (!investmentNames.length) {
     const nowYear = new Date().getFullYear();
     return { beginYear: nowYear, endYear: nowYear, balanceSeries: [], withdrawalSeries: [] };
@@ -214,9 +278,9 @@ export function buildTotalInvestmentAggregates(model: any): {
     let balSum = 0;
     per.forEach(p => { const v = p.balance.values[y]; if (typeof v === 'number') balSum += v; });
     totalBalance[y] = balSum;
-    const afterTaxBal = balSum * (1 - taxRate);
+    const afterTaxBal = balSum * (1 - taxRateAgg);
     totalBalanceAfterTax[y] = Math.round(afterTaxBal);
-    totalBalanceRealAfterTax[y] = Math.round(afterTaxBal / Math.pow(1 + inflRate, y - beginYear));
+    totalBalanceRealAfterTax[y] = Math.round(afterTaxBal / Math.pow(1 + inflRateAgg, y - beginYear));
 
     let anyWithdrawal = false;
     let wGross = 0; let wAfterTax = 0; let wRealAfterTax = 0;

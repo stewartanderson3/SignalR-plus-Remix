@@ -16,7 +16,7 @@ interface FormField {
   name: string;
   location: string; // dot path into model
   validators: Validator[];
-  type: "text" | "list" | "currency" | "percent" | "number";
+  type: "text" | "list" | "currency" | "percent" | "number" | "select";
   [key: string]: any;
 }
 
@@ -108,7 +108,7 @@ function formElements({
   showAllValidation,
   validationModel,
 }: FormElementsParams): JSX.Element[] {
-  return form.map(({ name, type, placeholder, autofocus, ...formElement }, index) => (
+  return form.map(({ name, type, placeholder, autofocus, items, ...formElement }, index) => (
     <Leaf
       key={index}
       showErrors={showAllValidation}
@@ -127,15 +127,28 @@ function formElements({
               items={value as unknown as Record<string, object> || {}}
               setItems={updateValue as unknown as (items: Record<string, object>) => void}
             />
-            : <TextInput
-              autofocus={autofocus}
-              placeholder={placeholder}
+            : type === "select" ? <select
+              className="form-control"
+              autoFocus={autofocus}
               value={value ?? ""}
-              onChange={updateValue as unknown as (value: string | number) => void}
-              type={type}
-              onBlur={showErrors}
-              className={`${errors.length > 0 ? "is-invalid " : ""}form-control mb-1`}
-            />
+              onChange={e => updateValue(e.target.value)}
+            >
+              <option value="">Select...</option>
+              {(items as string[]).map((item: string) => (
+                <option key={item} value={item}>
+                  {item}
+                </option>
+              ))}
+            </select>
+              : <TextInput
+                autofocus={autofocus}
+                placeholder={placeholder}
+                value={value ?? ""}
+                onChange={updateValue as unknown as (value: string | number) => void}
+                type={type}
+                onBlur={showErrors}
+                className={`${errors.length > 0 ? "is-invalid " : ""}form-control mb-1`}
+              />
           }
           {errors.length > 0 && (
             <ul className="errors">
