@@ -167,13 +167,14 @@ function Steps(): JSX.Element {
                     validators: [Validators.required],
                     type: "percent"
                   },
-                  {
+                  wageNames.length > 0 ? {
                     name: "Contributions From",
                     location: `investments.items.${investmentName}.contributionsFrom`,
                     type: "select",
                     items: wageNames
-                  },
+                  } : null,
                   get(`investments.items.${investmentName}.contributionsFrom.length`).from(model) as any > 0
+                    && wageNames.length > 0
                     ? {
                       name: "Annual Contribution Percentage (%)",
                       location: `investments.items.${investmentName}.contributionRate`,
