@@ -546,6 +546,37 @@ function Steps(): JSX.Element {
             <div className="step-meta">
               Step {currentIndex + 1} of {stepOrder.length} ({activeStepName})
             </div>
+            {/* Top duplicate navigation buttons (requested) */}
+            <div className="flex gap-sm" style={{ padding: '.25rem 0 0', alignItems: 'center' }}>
+              {!isFirstStep && (
+                <button
+                  className="btn btn-secondary"
+                  onClick={errorHandled(back)}
+                  disabled={stepState?.isLoading}
+                >
+                  Back
+                </button>
+              )}
+              <div style={{ flex: 1 }} />
+              {/* {stepState?.isSkippable && (
+                <button
+                  className="btn btn-link"
+                  onClick={errorHandled(skip)}
+                  disabled={stepState?.isLoading || isLastStep}
+                >
+                  Skip
+                </button>
+              )} */}
+              {!isLastStep && (
+                <button
+                  className="btn btn-primary"
+                  onClick={errorHandled(next)}
+                  disabled={stepState?.isLoading || isLastStep}
+                >
+                  Next
+                </button>
+              )}
+            </div>
           </div>
         </div>
       </div>
