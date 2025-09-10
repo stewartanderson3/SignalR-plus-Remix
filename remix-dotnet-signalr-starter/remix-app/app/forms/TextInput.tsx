@@ -68,6 +68,18 @@ export function TextInput(props: TextInputProps): JSX.Element {
 
   // Single local state for percent input; initialized from prop value once (no sync on later external changes)
   const [percentInput, setPercentInput] = useState(() => displays.percent(value));
+  // Keep percent display in sync when external value loads/changes (avoid clobbering user while mid-typing)
+  useEffect(() => {
+    if (props.type !== "percent") return;
+    const isTransitional = (s: string | undefined) => !!s && (/^-?$/.test(s) || s === '.' || s === '-.' || /^-?\d+\.$/.test(s));
+    const desired = displays.percent(value);
+    if (percentInput !== desired && !isTransitional(percentInput)) {
+      setPercentInput(desired);
+    }
+    if (!percentInput && desired) {
+      setPercentInput(desired);
+    }
+  }, [value, props.type, percentInput]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const t = props.type ?? "text";

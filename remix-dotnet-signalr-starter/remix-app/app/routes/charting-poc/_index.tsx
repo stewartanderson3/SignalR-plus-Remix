@@ -616,34 +616,6 @@ function Steps(): JSX.Element {
 }
 
 export default function App(): JSX.Element {
-  // Simple derived chart example (placeholder): Use retire year + planning span if available
-  // This is intentionally lightweight; real implementation should derive monthly/yearly income & net worth projections
-  const [model] = useLocalStorageState<Record<string, any>>("retirement");
-  const retireDateStr: string | undefined = model?.retireDate;
-  let retireYear: number | undefined;
-  if (retireDateStr && /\d{2}\/\d{2}\/\d{4}/.test(retireDateStr)) {
-    retireYear = Number(retireDateStr.split('/')[2]);
-  }
-  const yearsAfter: number = Number(model?.yearsAfterRetire) || 10;
-  const beginYear = new Date().getFullYear();
-  const endYear = retireYear ? retireYear + yearsAfter : beginYear + yearsAfter;
-
-  // Mock series: wages decline, net worth grows (placeholder logic)
-  const wagesSeries: Record<number, number> = {};
-  const netWorthSeries: Record<number, number> = {};
-  let wageBase = 0;
-  const wageEntries = Object.values(model?.wages || {}) as any[];
-  if (wageEntries.length) {
-    wageBase = wageEntries.reduce((acc, w: any) => acc + (Number(w?.annual) || 0), 0);
-  }
-  let netWorth: number = (Object.values(model?.investments || {}) as any[]).reduce((acc: number, inv: any) => acc + (Number(inv?.balance) || 0), 0);
-  for (let y = beginYear; y <= endYear; y++) {
-    const isRetired = retireYear ? y >= retireYear : false;
-    wagesSeries[y] = wageBase ? Math.max(0, Math.round(wageBase * (isRetired ? 0.15 : 1 - (y - beginYear) * 0.03))) : 0;
-    netWorth = Math.round(netWorth * 1.05 + (wagesSeries[y] * 0.15));
-    netWorthSeries[y] = netWorth;
-  }
-
   return (
     <ActiveStepContextProvider>
       <div className="flex flex-col gap-md">
