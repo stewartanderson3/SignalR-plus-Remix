@@ -49,25 +49,42 @@ export default function FinancialChart({
   const [minYear, maxYear] = beginYear <= endYear ? [beginYear, endYear] : [endYear, beginYear];
   const years = useMemo(() => Array.from({ length: maxYear - minYear + 1 }, (_, i) => minYear + i), [minYear, maxYear]);
 
-  const normalizedSeries = useMemo(
-    () =>
-      series.map((s, idx) => {
-        const colorPalette = ['#2563eb', '#dc2626', '#059669', '#7c3aed', '#d97706', '#0d9488'];
-        const defaultColor = colorPalette[idx % colorPalette.length];
-  const points = toArrayPoints(s.values);
-        const pointMap = new Map(points.map((p) => [p.year, p.value]));
-        const filled = years.map<YearValuePoint>((y) => ({ year: y, value: pointMap.has(y) ? pointMap.get(y)! : null }));
-        return {
-          ...s,
-          color: s.color || defaultColor,
-          strokeWidth: s.strokeWidth ?? 2,
-          strokeDasharray: s.strokeDasharray,
-          connectNulls: s.connectNulls ?? false,
-          data: filled,
-        };
-      }),
-    [series, years]
-  );
+  const normalizedSeries = useMemo(() => {
+    // Assign consistent colors
+    const colorPalette = ['#2563eb', '#dc2626', '#059669', '#7c3aed', '#d97706', '#0d9488'];
+    // Build per-series normalized arrays first
+    return series.map((s, idx) => {
+      const defaultColor = colorPalette[idx % colorPalette.length];
+      const points = toArrayPoints(s.values);
+      const pointMap = new Map(points.map((p) => [p.year, p.value]));
+      const filled = years.map<YearValuePoint>((y) => ({ year: y, value: pointMap.has(y) ? pointMap.get(y)! : null }));
+      // Stable object key for unified dataset (avoid spaces & punctuation)
+      let keyBase = s.name.replace(/[^A-Za-z0-9_]+/g, '_');
+      if (!/^[A-Za-z_]/.test(keyBase)) keyBase = '_' + keyBase; // ensure valid identifier-like start
+      const key = `${keyBase}_${idx}`; // idx suffix prevents accidental collisions
+      return {
+        ...s,
+        key,
+        color: s.color || defaultColor,
+        strokeWidth: s.strokeWidth ?? 2,
+        strokeDasharray: s.strokeDasharray,
+        connectNulls: s.connectNulls ?? false,
+        data: filled,
+      };
+    });
+  }, [series, years]);
+
+  // Unified dataset so each year row contains all series values => fixes tooltip misalignment when each Line had its own data array.
+  const unifiedData = useMemo(() => {
+    return years.map((y) => {
+      const row: Record<string, any> = { year: y };
+      normalizedSeries.forEach((s) => {
+        const point = s.data[y - years[0]]; // aligned index because we filled sequential years
+        row[s.key] = point ? point.value : null;
+      });
+      return row;
+    });
+  }, [years, normalizedSeries]);
 
   // Compute Y min/max across all numeric values
   const yDomain = useMemo<[number, number]>(() => {
@@ -82,13 +99,14 @@ export default function FinancialChart({
     }
     const range = max - min;
     const pad = range * 0.05;
-  const lower = min < 0 ? min - pad : Math.max(0, min - pad);
+    const lower = min < 0 ? min - pad : Math.max(0, min - pad);
     return [Math.floor(lower), Math.ceil(max + pad)];
   }, [normalizedSeries]);
 
   const formatter = useMemo(() => defaultCurrencyFormatter(currency), [currency]);
 
-  const axisData = useMemo(() => years.map((y) => ({ year: y })), [years]);
+  // Data fed to LineChart now contains year and all series keys
+  const axisData = unifiedData;
 
   const tooltipFormatter = (value: any) => (typeof value === 'number' ? formatter.format(value) : value);
   const tooltipLabelFormatter = (label: any) => `Year ${label}${valueLabel ? ` • ${valueLabel}` : ''}`;
@@ -96,7 +114,7 @@ export default function FinancialChart({
   return (
     <div style={{ width: '100%', height, maxWidth, borderRadius: 8, padding: 8 }}>
       <ResponsiveContainer>
-        <LineChart data={axisData} margin={{ top: 10, right: 24, left: 8, bottom: 8 }}>
+  <LineChart data={axisData} margin={{ top: 10, right: 24, left: 8, bottom: 8 }}>
           <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
           <XAxis
             dataKey="year"
@@ -128,10 +146,9 @@ export default function FinancialChart({
           <Legend wrapperStyle={{ fontSize: 12 }} />
           {normalizedSeries.map((s) => (
             <Line
-              key={s.name}
+              key={s.key}
               name={s.name}
-              data={s.data}
-              dataKey="value"
+              dataKey={s.key}
               type="monotone"
               stroke={s.color}
               strokeWidth={s.strokeWidth}
