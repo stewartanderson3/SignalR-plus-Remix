@@ -86,8 +86,8 @@ function buildWageMonthlyIncomeChart(wageName: string, model: any): {
     valueLabel: 'Monthly Income',
     series: [
       { name: `${wageName} Gross`, values: grossValues, strokeWidth: 3 },
-      { name: `${wageName} After-Tax`, values: afterTaxValues, strokeDasharray: '5 4' },
-      { name: `${wageName} After-Tax (Real)`, values: realAfterTaxValues, strokeDasharray: '2 3' }
+      { name: `${wageName} After Tax`, values: afterTaxValues, strokeDasharray: '5 4' },
+      { name: `${wageName} After Tax & Inflation`, values: realAfterTaxValues, strokeDasharray: '2 3' }
     ]
   };
 }
@@ -161,8 +161,8 @@ function buildInvestmentBalanceAndWithdrawalChart(investmentName: string, model:
     balance: { name: `${investmentName} Balance`, values: balanceValues, strokeWidth: 3 },
     withdrawalSeries: [
       { name: `${investmentName} Withdrawal Gross`, values: withdrawalMonthlyValues, strokeDasharray: '4 4' },
-      { name: `${investmentName} Withdrawal After-Tax`, values: withdrawalAfterTaxValues, strokeDasharray: '5 3' },
-      { name: `${investmentName} Withdrawal After-Tax (Real)`, values: withdrawalRealAfterTaxValues, strokeDasharray: '2 3' }
+      { name: `${investmentName} Withdrawal After Tax`, values: withdrawalAfterTaxValues, strokeDasharray: '5 3' },
+      { name: `${investmentName} Withdrawal After Tax & Inflation`, values: withdrawalRealAfterTaxValues, strokeDasharray: '2 3' }
     ]
   };
 }
@@ -215,8 +215,8 @@ function buildAnnuityMonthlyIncomeChart(annuityName: string, model: any): {
     valueLabel: 'Monthly Income',
     series: [
       { name: `${annuityName} Gross`, values: grossValues, strokeWidth: 3 },
-      { name: `${annuityName} After-Tax`, values: afterTaxValues, strokeDasharray: '5 4' },
-      { name: `${annuityName} After-Tax (Real)`, values: realAfterTaxValues, strokeDasharray: '2 3' }
+      { name: `${annuityName} After Tax`, values: afterTaxValues, strokeDasharray: '5 4' },
+      { name: `${annuityName} After Tax & Inflation`, values: realAfterTaxValues, strokeDasharray: '2 3' }
     ]
   };
 }
