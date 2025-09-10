@@ -43,7 +43,7 @@ export default function FinancialChart({
   currency = 'USD',
   valueLabel,
   height = 360,
-  maxWidth = 860,
+  maxWidth,
 }: FinancialChartProps) {
   // Normalize and guard year range
   const [minYear, maxYear] = beginYear <= endYear ? [beginYear, endYear] : [endYear, beginYear];
@@ -111,8 +111,12 @@ export default function FinancialChart({
   const tooltipFormatter = (value: any) => (typeof value === 'number' ? formatter.format(value) : value);
   const tooltipLabelFormatter = (label: any) => `Year ${label}${valueLabel ? ` • ${valueLabel}` : ''}`;
 
+  // Allow full-width expansion by default. Only constrain width if a maxWidth prop is explicitly provided.
+  const outerStyle: React.CSSProperties = { width: '100%', height, borderRadius: 8, padding: 8 };
+  if (maxWidth !== undefined) outerStyle.maxWidth = maxWidth;
+
   return (
-    <div style={{ width: '100%', height, maxWidth, borderRadius: 8, padding: 8 }}>
+    <div style={outerStyle}>
       <ResponsiveContainer>
   <LineChart data={axisData} margin={{ top: 10, right: 24, left: 8, bottom: 8 }}>
           <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
