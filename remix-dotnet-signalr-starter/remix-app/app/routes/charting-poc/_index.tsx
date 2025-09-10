@@ -248,28 +248,35 @@ function Steps(): JSX.Element {
                 .map(s => ({ ...s, strokeDasharray: undefined, color: '#059669', strokeWidth: 3 }));
               return (
                 <>
-                  {realWithdrawal.length > 0 && (
+                  {realWithdrawal.length > 0 && (<>
+                    Monthly Income
                     <FinancialChart
                       beginYear={agg.beginYear}
                       endYear={agg.endYear}
                       valueLabel="Real Monthly Withdrawal (After Tax & Inflation)"
                       series={realWithdrawal}
                     />
-                  )}
-                  {realBalance.length > 0 && (
+                  </>)}
+
+                  {realBalance.length > 0 && (<>
+                    Real Balance
                     <FinancialChart
                       beginYear={agg.beginYear}
                       endYear={agg.endYear}
                       valueLabel="Real Balance (After Tax & Inflation)"
                       series={realBalance}
                     />
-                  )}
+                  </>)}
+
+                  Income Breakdown
                   <FinancialChart
                     beginYear={agg.beginYear}
                     endYear={agg.endYear}
                     valueLabel="Monthly Withdrawal"
                     series={agg.withdrawalSeries}
                   />
+
+                  Balance Breakdown
                   <FinancialChart
                     beginYear={agg.beginYear}
                     endYear={agg.endYear}
