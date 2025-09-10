@@ -302,7 +302,6 @@ function Steps(): JSX.Element {
             <div className="step-meta">
               Step {currentIndex + 1} of {stepOrder.length} ({activeStepName})
             </div>
-            {/* Top duplicate navigation buttons (requested) */}
             <div className="flex gap-sm" style={{ padding: '.25rem 0 0', alignItems: 'center' }}>
               {!isFirstStep && (
                 <button
