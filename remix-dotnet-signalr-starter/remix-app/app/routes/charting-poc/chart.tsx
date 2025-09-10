@@ -1,41 +1,24 @@
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import React, { useMemo } from 'react';
 
-/**
- * A reusable financial line chart component.
- * X axis = Year (inclusive range from beginYear to endYear)
- * Y axis = Money (auto min/max with padding). Accepts multiple series and null gaps.
- */
-
 type YearValuePoint = { year: number; value: number | null };
 
 type SeriesInput = {
-  /** Display name in legend */
   name: string;
-  /** Values by year. Can be a map (object) or an explicit point array. */
   values: Record<number, number | null | undefined> | YearValuePoint[];
-  /** Line color */
   color?: string;
-  /** Line width */
   strokeWidth?: number;
-  /** Recharts strokeDasharray e.g. '5 4' */
   strokeDasharray?: string;
-  /** Whether to connect null gaps */
   connectNulls?: boolean;
 };
 
 export interface FinancialChartProps {
   beginYear: number;
   endYear: number;
-  /** One or more monetary series */
   series: SeriesInput[];
-  /** Optional currency code (default USD) */
   currency?: string;
-  /** Label describing what the monetary value represents (used in tooltip subtitle) */
   valueLabel?: string;
-  /** Height in pixels */
   height?: number;
-  /** max width container style convenience */
   maxWidth?: number | string;
 }
 
@@ -71,13 +54,11 @@ export default function FinancialChart({
       series.map((s, idx) => {
         const colorPalette = ['#2563eb', '#dc2626', '#059669', '#7c3aed', '#d97706', '#0d9488'];
         const defaultColor = colorPalette[idx % colorPalette.length];
-        const points = toArrayPoints(s.values);
-        // Fill in missing years with null to keep alignment (optional – Recharts handles sparse points, but this ensures tooltips show consistent year axis)
+  const points = toArrayPoints(s.values);
         const pointMap = new Map(points.map((p) => [p.year, p.value]));
         const filled = years.map<YearValuePoint>((y) => ({ year: y, value: pointMap.has(y) ? pointMap.get(y)! : null }));
         return {
           ...s,
-            // ensure required props
           color: s.color || defaultColor,
           strokeWidth: s.strokeWidth ?? 2,
           strokeDasharray: s.strokeDasharray,
@@ -101,7 +82,7 @@ export default function FinancialChart({
     }
     const range = max - min;
     const pad = range * 0.05;
-    const lower = min < 0 ? min - pad : Math.max(0, min - pad); // keep 0 floor if all positive
+  const lower = min < 0 ? min - pad : Math.max(0, min - pad);
     return [Math.floor(lower), Math.ceil(max + pad)];
   }, [normalizedSeries]);
 
@@ -155,8 +136,8 @@ export default function FinancialChart({
               stroke={s.color}
               strokeWidth={s.strokeWidth}
               strokeDasharray={s.strokeDasharray}
-              dot={{ r: 4, stroke: s.color, strokeWidth: 2 }}
-              activeDot={{ r: 6 }}
+              dot={false}
+              activeDot={false}
               isAnimationActive={false}
               connectNulls={s.connectNulls}
             />
@@ -166,14 +147,3 @@ export default function FinancialChart({
     </div>
   );
 }
-
-// Example (remove when integrating):
-// <FinancialChart
-//   beginYear={2025}
-//   endYear={2035}
-//   valueLabel="Net Worth"
-//   series={[
-//     { name: 'Projection A', values: { 2025: 12000, 2026: 18000, 2027: 15000, 2029: 22000 } },
-//     { name: 'Projection B', values: [ { year: 2025, value: 10000 }, { year: 2026, value: 12500 }, { year: 2027, value: 17000 }, { year: 2028, value: 21000 } ], strokeDasharray: '5 4' }
-//   ]}
-// />
