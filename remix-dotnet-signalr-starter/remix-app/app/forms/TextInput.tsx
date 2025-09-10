@@ -1,4 +1,4 @@
-import React, { useRef, useEffect } from "react";
+import React, { useRef, useEffect, useState } from "react";
 
 const noOp = () => undefined;
 
@@ -11,15 +11,18 @@ export interface TextInputProps extends Omit<React.InputHTMLAttributes<HTMLInput
 
 export function TextInput(props: TextInputProps): JSX.Element {
   const { autofocus, value, onChange, ...otherProps } = props;
-  const onTextChange = (event: React.ChangeEvent<HTMLInputElement>) =>
-    onChange(event?.target?.value ?? "");
+  // (Legacy helper removed; using inline handlers now)
   const theInput = useRef<HTMLInputElement | { focus: () => void }>({ focus: noOp });
   const displays = {
     percent: (val: string | number | undefined) => {
       if (val === undefined || val === null || val === "") return "";
-      const num = typeof val === "number" ? val : parseFloat(val);
+      const num = typeof val === "number" ? val : parseFloat(val as string);
       if (isNaN(num)) return "";
-      return (num * 100);
+      const pct = num * 100;
+      let str = pct.toFixed(8);
+      str = str.replace(/\.0+$/, "");
+      str = str.replace(/(\.[0-9]*?)0+$/, "$1");
+      return str;
     },
     currency: (val: string | number | undefined) => {
       if (val === undefined || val === null || val === "") return "";
@@ -41,7 +44,8 @@ export function TextInput(props: TextInputProps): JSX.Element {
       if (!val || val.trim() === "") return undefined;
       const num = parseFloat(val);
       if (isNaN(num)) return undefined;
-      return num / 100;
+      const fractional = num / 100;
+      return parseFloat(fractional.toFixed(8));
     },
     currency: (val: string) => {
       if (!val || val.trim() === "") return undefined;
@@ -62,14 +66,39 @@ export function TextInput(props: TextInputProps): JSX.Element {
     if (autofocus && "focus" in theInput.current) theInput.current.focus();
   }, [autofocus]);
 
+  // Single local state for percent input; initialized from prop value once (no sync on later external changes)
+  const [percentInput, setPercentInput] = useState(() => displays.percent(value));
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const t = props.type ?? "text";
+    if (t === "percent") {
+      const txt = e.target.value;
+      setPercentInput(txt);
+      // Allow transitional forms (don't emit value yet)
+      if (txt === '' || /^-?$/.test(txt) || txt === '.' || txt === '-.' || /^-?\d+\.$/.test(txt)) return;
+      if (/^-?\d*\.?\d*$/.test(txt)) {
+        const num = parseFloat(txt);
+        if (!isNaN(num)) {
+          const fractional = parseFloat((num / 100).toFixed(8));
+          onChange(fractional);
+        }
+      }
+      return;
+    }
+    onChange(parses[t](e.target.value) ?? "");
+  };
+
+  const isPercent = props.type === "percent";
+  const inputValue = isPercent ? percentInput : displays[props.type ?? "text"](value);
+
   return (
     <input
       className="form-control"
       {...otherProps}
       ref={theInput as React.MutableRefObject<HTMLInputElement>}
       type="text"
-      value={displays[props.type ?? "text"](value)}
-      onChange={(e) => onChange(parses[props.type ?? "text"](e.target.value) ?? "")}
+      value={inputValue}
+      onChange={handleChange}
     />
   );
 }
