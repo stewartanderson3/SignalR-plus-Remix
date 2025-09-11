@@ -257,22 +257,35 @@ export function buildTotalInvestmentAggregates(model: any): {
       investmentNames = Object.keys(invRoot).sort(); // legacy structure
     }
   }
+  // Wages
+  const wageRoot: any = (model as any)?.wages?.items;
+  const wageNames: string[] = wageRoot ? Object.keys(wageRoot).sort() : [];
   // Annuities
   const annRoot: any = (model as any)?.annuities?.items;
   const annuityNames: string[] = annRoot ? Object.keys(annRoot).sort() : [];
 
   // If nothing at all, return empty stub
-  if (!investmentNames.length && !annuityNames.length) {
+  if (!investmentNames.length && !annuityNames.length && !wageNames.length) {
     const nowYear = new Date().getFullYear();
     return { beginYear: nowYear, endYear: nowYear, balanceSeries: [], withdrawalSeries: [] };
   }
 
   const investmentSeries = investmentNames.map((n) => buildInvestmentBalanceAndWithdrawalChart(n, model));
   const annuitySeries = annuityNames.map((n) => buildAnnuityMonthlyIncomeChart(n, model));
+  const wageSeries = wageNames.map((n) => buildWageMonthlyIncomeChart(n, model));
+  // Map wage stop work years for suppression in aggregation to avoid overlap spike.
+  const wageStopWorkYears: Record<string, number | undefined> = {};
+  wageNames.forEach(n => {
+    const swd: string | undefined = wageRoot?.[n]?.stopWorkDate;
+    if (swd && /\d{2}\/\d{2}\/\d{4}/.test(swd)) {
+      wageStopWorkYears[n] = Number(swd.split('/')[2]);
+    }
+  });
 
   // Determine combined horizon
-  const beginYear = [...investmentSeries, ...annuitySeries].reduce((min, p: any) => Math.min(min, p.beginYear), (investmentSeries[0] || annuitySeries[0]).beginYear);
-  const endYear = [...investmentSeries, ...annuitySeries].reduce((max, p: any) => Math.max(max, p.endYear), (investmentSeries[0] || annuitySeries[0]).endYear);
+  const horizonSources: any[] = [...investmentSeries, ...annuitySeries, ...wageSeries];
+  const beginYear = horizonSources.reduce((min, p: any) => Math.min(min, p.beginYear), horizonSources[0].beginYear);
+  const endYear = horizonSources.reduce((max, p: any) => Math.max(max, p.endYear), horizonSources[0].endYear);
 
   const taxRateAgg: number = normalizePct(model?.taxPercentage);
   const inflRateAgg: number = normalizePct(model?.inflationPercentage);
@@ -322,6 +335,23 @@ export function buildTotalInvestmentAggregates(model: any): {
       const g = grossSeries ? grossSeries[y] : null;
       const at = atSeries ? atSeries[y] : null;
       const rat = ratSeries ? ratSeries[y] : null;
+      if (typeof g === 'number') { anyIncome = true; gSum += g; }
+      if (typeof at === 'number') atSum += at;
+      if (typeof rat === 'number') ratSum += rat;
+    });
+
+    // Wage monthly income (NEW: include wages in total income aggregation)
+    wageSeries.forEach((w, idx) => {
+      const wageName = wageNames[idx];
+      const stopYear = wageStopWorkYears[wageName];
+      // Suppress the LAST year of wages in total aggregation to prevent spike / double-dip when withdrawals begin same year.
+      if (stopYear !== undefined && y === stopYear) return; // skip adding wages for this terminal year
+      const grossSeries = w.series[0]?.values;
+      const atSeries = w.series[1]?.values;
+      const ratSeries = w.series[2]?.values;
+      const g = grossSeries ? (grossSeries as any)[y] : null;
+      const at = atSeries ? (atSeries as any)[y] : null;
+      const rat = ratSeries ? (ratSeries as any)[y] : null;
       if (typeof g === 'number') { anyIncome = true; gSum += g; }
       if (typeof at === 'number') atSum += at;
       if (typeof rat === 'number') ratSum += rat;
