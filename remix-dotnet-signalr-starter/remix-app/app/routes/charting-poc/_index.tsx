@@ -222,14 +222,14 @@ function Steps(): JSX.Element {
                 <FinancialChart
                   beginYear={beginYear}
                   endYear={endYear}
-                  valueLabel="Balance"
-                  series={[balance]}
+                  valueLabel="Monthly Withdrawal"
+                  series={withdrawalSeries}
                 />
                 <FinancialChart
                   beginYear={beginYear}
                   endYear={endYear}
-                  valueLabel="Monthly Withdrawal"
-                  series={withdrawalSeries}
+                  valueLabel="Balance"
+                  series={[balance]}
                 />
               </div>
             </div>
