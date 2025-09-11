@@ -25,19 +25,30 @@ export const NormalizedList: React.FC<Props> = ({ items, setItems, autoFocus, ..
 
     return (
         <>
-            <TextInput
-                {...otherProps}
-                autoFocus={autoFocus}
-                type="text"
-                value={itemName}
-                onChange={setItemName as unknown as (value: string | number) => void}
-                onKeyDown={(e) => {
-                    if (e.key === 'Enter') {
-                        e.preventDefault();
-                        addItem();
-                    }
-                }}
-            />
+            <div style={{ display: 'flex', gap: '.5rem', alignItems: 'flex-start', marginBottom: '1rem' }}>
+                <TextInput
+                    {...otherProps}
+                    autoFocus={autoFocus}
+                    type="text"
+                    value={itemName}
+                    onChange={setItemName as unknown as (value: string | number) => void}
+                    onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                            e.preventDefault();
+                            addItem();
+                        }
+                    }}
+                />
+                <button
+                    type="button"
+                    className="btn btn-primary"
+                    disabled={itemName.trim() === ''}
+                    onClick={addItem}
+                    aria-label="Add item"
+                >
+                    Add
+                </button>
+            </div>
             <ul>
                 {itemNames.map((key) => (
                     <li key={key} style={{ marginBottom: '0.5rem', listStyleType: 'none' }}>
