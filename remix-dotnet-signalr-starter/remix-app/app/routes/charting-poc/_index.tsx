@@ -61,7 +61,7 @@ function stepDetailsFromName(stepName: string): { name: string; stepId?: string;
   }
   const [category, ...rest] = stepName.split(": ");
   const name = rest.join(": ").trim();
-  const path = `${category.toLowerCase()}.items.${name.replace(/\s+/g, "_")}`;
+  const path = `${category.toLowerCase()}.items.${name}`;
 
   return { name, path, stepId: stepName };
 };
@@ -378,11 +378,11 @@ function Steps(): JSX.Element {
                 <button
                   type="button"
                   role="tab"
-                  aria-selected={activeStepName === stepId}
-                  aria-controls={`step-panel-${stepId}`}
-                  key={name}
+                  aria-selected={activeStepName === (stepId ?? name)}
+                  aria-controls={`step-panel-${(stepId ?? name)}`}
+                  key={(stepId ?? name)}
                   data-index={i + 1}
-                  data-active={activeStepName === stepId}
+                  data-active={activeStepName === (stepId ?? name)}
                   className="step-pill"
                   // onClick={errorHandled(() => goTo({ stepName, skipGoToHandler }))}
                   onClick={errorHandled(() => goTo({ stepName: stepId ?? name, skipGoToHandler: false }))}
