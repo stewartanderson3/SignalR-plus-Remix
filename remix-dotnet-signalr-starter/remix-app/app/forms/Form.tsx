@@ -9,7 +9,7 @@ import {
 } from "leaf-validator";
 import { TextInput } from "./TextInput";
 import { useActiveStep } from "../steps";
-import { NormalizedList } from "./NormalizedList";
+import { NormalizedList, NormalizedListGrid } from "./NormalizedList";
 
 type Validator = (value: string | undefined | null) => false | string[];
 
@@ -114,7 +114,11 @@ function formElements({
   showAllValidation,
   validationModel,
 }: FormElementsParams): JSX.Element[] {
-  return form.map(({ name, type, placeholder, autofocus, items, ...formElement }, index) => (
+  // Group list-type fields so they can render in a flex grid rather than vertical stack
+  const listFields = form.filter(f => f.type === 'list');
+  const otherFields = form.filter(f => f.type !== 'list');
+
+  const renderField = ({ name, type, placeholder, autofocus, items, ...formElement }: FormField, index: number) => (
     <Leaf
       key={index}
       showErrors={showAllValidation}
@@ -168,5 +172,16 @@ function formElements({
         </label>
       )}
     </Leaf>
-  ));
+  );
+
+  const renderedOther = otherFields.map(renderField);
+  const renderedLists = listFields.length > 0 ? (
+    <NormalizedListGrid key="normalized-list-grid">
+      {listFields.map((f, i) => (
+        <div key={`list-${i}`}>{renderField(f, 1000 + i)}</div>
+      ))}
+    </NormalizedListGrid>
+  ) : null;
+
+  return [...renderedOther, renderedLists].filter(Boolean) as JSX.Element[];
 }
