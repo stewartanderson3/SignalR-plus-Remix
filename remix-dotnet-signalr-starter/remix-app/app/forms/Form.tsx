@@ -5,6 +5,7 @@ import {
   useLoadingState,
   useErrorHandler,
   useLocalStorageState,
+  set,
 } from "leaf-validator";
 import { TextInput } from "./TextInput";
 import { useActiveStep } from "../steps";
@@ -38,14 +39,16 @@ interface FormProps {
   form: FormField[];
   model: Record<string, unknown>;
   setModel: (m: any) => void;
+  completionStatusPath?: string;
 }
 
-export function Form({ form, model, setModel }: FormProps): JSX.Element {
+export function Form({ form, model, setModel, completionStatusPath }: FormProps): JSX.Element {
   const { stepApi, setStepState } = useActiveStep<StepStateMeta, StepApi>();
   const validationModel = useValidationModel();
   const [showAllValidation, setShowAllValidation] = useState(false);
   const { clearError, errorHandler, errors } = useErrorHandler();
   const [isSubmitting, showSubmittingWhile] = useLoadingState({ errorHandler });
+  const hasErrors = validationModel.getAllErrorsForLocation("").length > 0;
   const submit = async (event?: React.FormEvent): Promise<void> => {
     if (event) event.preventDefault();
     setShowAllValidation(true);
@@ -53,7 +56,6 @@ export function Form({ form, model, setModel }: FormProps): JSX.Element {
     //   await showSubmittingWhile(fakeSendDataToServer({ model: model!, form }));
     // }
 
-    const hasErrors = validationModel.getAllErrorsForLocation("").length > 0;
     if (hasErrors) throw new Error("Has validation errors");
   };
 
@@ -62,6 +64,10 @@ export function Form({ form, model, setModel }: FormProps): JSX.Element {
   useEffect(() => {
     setStepState({ isLoading: isSubmitting, isSkippable: true });
   }, [isSubmitting, setStepState]);
+
+  useEffect(() => {
+    completionStatusPath && setModel((model: any) => set(completionStatusPath).to(!hasErrors).in(model));
+  }, [hasErrors]);
 
   return (
     <div className="App">

@@ -55,6 +55,20 @@ const Validators = {
   }
 }
 
+function stepDetailsFromName(stepName: string): { name: string; stepId?: string; path?: string } {
+  if (!stepName.includes(": ")) {
+    return { name: stepName };
+  }
+  const [category, ...rest] = stepName.split(": ");
+  const name = rest.join(": ").trim();
+  const path = `${category.toLowerCase()}.items.${name.replace(/\s+/g, "_")}`;
+
+  return { name, path, stepId: stepName };
+};
+
+const wageStepNameFrom = (name: string): string => `Wages: ${name}`;
+const investmentStepNameFrom = (name: string): string => `Investments: ${name}`;
+const annuityStepNameFrom = (name: string): string => `Annuities: ${name}`;
 
 function Steps(): JSX.Element {
   const { stepApi, stepState } = useActiveStep<StepStateMeta, StepApi>();
@@ -63,9 +77,9 @@ function Steps(): JSX.Element {
   const investmentNames = Object.keys((model as any)?.investments?.items || {}).sort();
   const annuityNames = Object.keys((model as any)?.annuities?.items || {}).sort();
   const dynamicStepNames = [
-    ...wageNames,
-    ...investmentNames,
-    ...annuityNames
+    ...wageNames.map(wageStepNameFrom),
+    ...investmentNames.map(investmentStepNameFrom),
+    ...annuityNames.map(annuityStepNameFrom)
   ];
 
   const steps: Record<string, JSX.Element> = {
@@ -114,7 +128,7 @@ function Steps(): JSX.Element {
 
     ...wageNames.reduce((acc, wageName) => ({
       ...acc,
-      [wageName]: (() => {
+      [wageStepNameFrom(wageName)]: (() => {
         const chartProps = buildWageMonthlyIncomeChart(wageName, model);
         return (
           <div className="card">
@@ -122,16 +136,21 @@ function Steps(): JSX.Element {
             <div className="card-subheader">{wageName}</div>
             <div className="flex" style={{ gap: '1rem', alignItems: 'flex-start' }}>
               <div style={{ flex: '0 0 340px', maxWidth: 400 }}>
-                <Form key={`wages.items.${wageName}`} model={model ?? {}} setModel={setModel} form={[
-                  { name: "$ / year", location: `wages.items.${wageName}.annual`, validators: [Validators.required], type: "currency" },
-                  { name: "Average Annual % Raise", location: `wages.items.${wageName}.raise`, validators: [Validators.required], type: "percent" },
-                  {
-                    name: "Anticipated Date to Stop Work",
-                    location: `wages.items.${wageName}.stopWorkDate`,
-                    validators: [Validators.required, Validators.isFutureOrCurrentDate],
-                    type: "text"
-                  },
-                ]} />
+                <Form
+                  key={`wages.items.${wageName}`}
+                  model={model ?? {}}
+                  setModel={setModel}
+                  completionStatusPath={`wages.items.${wageName}.isComplete`}
+                  form={[
+                    { name: "$ / year", location: `wages.items.${wageName}.annual`, validators: [Validators.required], type: "currency" },
+                    { name: "Average Annual % Raise", location: `wages.items.${wageName}.raise`, validators: [Validators.required], type: "percent" },
+                    {
+                      name: "Anticipated Date to Stop Work",
+                      location: `wages.items.${wageName}.stopWorkDate`,
+                      validators: [Validators.required, Validators.isFutureOrCurrentDate],
+                      type: "text"
+                    },
+                  ]} />
               </div>
               <div style={{ flex: 1, minWidth: 0 }}>
                 <FinancialChart {...chartProps} />
@@ -144,7 +163,7 @@ function Steps(): JSX.Element {
 
     ...investmentNames.reduce((acc, investmentName) => ({
       ...acc,
-      [investmentName]: (() => {
+      [investmentStepNameFrom(investmentName)]: (() => {
         const { beginYear, endYear, balance, withdrawalSeries } = buildInvestmentBalanceAndWithdrawalChart(investmentName, model);
         return (
           <div className="card">
@@ -152,37 +171,42 @@ function Steps(): JSX.Element {
             <div className="card-subheader">{investmentName}</div>
             <div className="flex" style={{ gap: '1rem', alignItems: 'flex-start' }}>
               <div style={{ flex: '0 0 340px', maxWidth: 400 }}>
-                <Form key={`investments.items.${investmentName}`} model={model ?? {}} setModel={setModel} form={[
-                  { name: "Initial Balance", location: `investments.items.${investmentName}.balance`, validators: [Validators.required], type: "currency" },
-                  { name: "Annual % Rate of Return", location: `investments.items.${investmentName}.rate`, validators: [Validators.required], type: "percent" },
-                  {
-                    name: "Start Taking Withdrawals Date",
-                    location: `investments.items.${investmentName}.withdrawalDate`,
-                    validators: [Validators.required, Validators.isDate],
-                    type: "text"
-                  },
-                  {
-                    name: "Annual Withdrawal Percentage (%)",
-                    location: `investments.items.${investmentName}.withdrawalRate`,
-                    validators: [Validators.required],
-                    type: "percent"
-                  },
-                  wageNames.length > 0 ? {
-                    name: "Contributions From",
-                    location: `investments.items.${investmentName}.contributionsFrom`,
-                    type: "select",
-                    items: wageNames
-                  } : null,
-                  get(`investments.items.${investmentName}.contributionsFrom.length`).from(model) as any > 0
-                    && wageNames.length > 0
-                    ? {
-                      name: "Annual Contribution Percentage (%)",
-                      location: `investments.items.${investmentName}.contributionRate`,
+                <Form
+                  key={`investments.items.${investmentName}`}
+                  model={model ?? {}}
+                  setModel={setModel}
+                  completionStatusPath={`investments.items.${investmentName}.isComplete`}
+                  form={[
+                    { name: "Initial Balance", location: `investments.items.${investmentName}.balance`, validators: [Validators.required], type: "currency" },
+                    { name: "Annual % Rate of Return", location: `investments.items.${investmentName}.rate`, validators: [Validators.required], type: "percent" },
+                    {
+                      name: "Start Taking Withdrawals Date",
+                      location: `investments.items.${investmentName}.withdrawalDate`,
+                      validators: [Validators.required, Validators.isDate],
+                      type: "text"
+                    },
+                    {
+                      name: "Annual Withdrawal Percentage (%)",
+                      location: `investments.items.${investmentName}.withdrawalRate`,
                       validators: [Validators.required],
                       type: "percent"
-                    }
-                    : null
-                ].filter(Boolean) as any} />
+                    },
+                    wageNames.length > 0 ? {
+                      name: "Contributions From",
+                      location: `investments.items.${investmentName}.contributionsFrom`,
+                      type: "select",
+                      items: wageNames
+                    } : null,
+                    get(`investments.items.${investmentName}.contributionsFrom.length`).from(model) as any > 0
+                      && wageNames.length > 0
+                      ? {
+                        name: "Annual Contribution Percentage (%)",
+                        location: `investments.items.${investmentName}.contributionRate`,
+                        validators: [Validators.required],
+                        type: "percent"
+                      }
+                      : null
+                  ].filter(Boolean) as any} />
               </div>
               <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
                 <FinancialChart
@@ -206,7 +230,7 @@ function Steps(): JSX.Element {
 
     ...annuityNames.reduce((acc, annuityName) => ({
       ...acc,
-      [annuityName]: (() => {
+      [annuityStepNameFrom(annuityName)]: (() => {
         const chartProps = buildAnnuityMonthlyIncomeChart(annuityName, model);
         return (
           <div className="card">
@@ -214,15 +238,20 @@ function Steps(): JSX.Element {
             <div className="card-subheader">{annuityName}</div>
             <div className="flex" style={{ gap: '1rem', alignItems: 'flex-start' }}>
               <div style={{ flex: '0 0 340px', maxWidth: 400 }}>
-                <Form key={`annuities.items.${annuityName}`} model={model ?? {}} setModel={setModel} form={[
-                  { name: "$ / month", location: `annuities.items.${annuityName}.monthly`, validators: [], type: "currency" },
-                  {
-                    name: "Start Date",
-                    location: `annuities.items.${annuityName}.startDate`,
-                    validators: [Validators.required, Validators.isDate],
-                    type: "text"
-                  },
-                ]} />
+                <Form
+                  key={`annuities.items.${annuityName}`}
+                  model={model ?? {}}
+                  setModel={setModel}
+                  completionStatusPath={`annuities.items.${annuityName}.isComplete`}
+                  form={[
+                    { name: "$ / month", location: `annuities.items.${annuityName}.monthly`, validators: [], type: "currency" },
+                    {
+                      name: "Start Date",
+                      location: `annuities.items.${annuityName}.startDate`,
+                      validators: [Validators.required, Validators.isDate],
+                      type: "text"
+                    },
+                  ]} />
               </div>
               <div style={{ flex: 1, minWidth: 0 }}>
                 <FinancialChart {...chartProps} />
@@ -328,20 +357,23 @@ function Steps(): JSX.Element {
         <div className="flex space-between align-center">
           <div style={{ display: 'flex', flexDirection: 'column', gap: '.5rem', flex: 1 }}>
             <div className="stepper" role="tablist" aria-label="Wizard Steps">
-              {stepOrder.map((stepName: string, i) => (
+              {stepOrder.map(stepDetailsFromName).map(({ name, path: stepPath, stepId }, i) => (
                 <button
                   type="button"
                   role="tab"
-                  aria-selected={activeStepName === stepName}
-                  aria-controls={`step-panel-${stepName}`}
-                  key={stepName}
+                  aria-selected={activeStepName === stepId}
+                  aria-controls={`step-panel-${stepId}`}
+                  key={name}
                   data-index={i + 1}
-                  data-active={activeStepName === stepName}
+                  data-active={activeStepName === stepId}
                   className="step-pill"
                   // onClick={errorHandled(() => goTo({ stepName, skipGoToHandler }))}
-                  onClick={errorHandled(() => goTo({ stepName, skipGoToHandler: false }))}
+                  onClick={errorHandled(() => goTo({ stepName: stepId ?? name, skipGoToHandler: false }))}
                 >
-                  {stepName}
+                  {stepPath && (get(`${stepPath}.isComplete`).from(model)
+                    ? <span style={{ color: 'green', fontWeight: 'bold' }}>✓ </span>
+                    : <span style={{ color: 'red', fontWeight: 'bold' }}>X </span>)}
+                  {name}
                 </button>
               ))}
             </div>
