@@ -253,7 +253,7 @@ function Steps(): JSX.Element {
                     <FinancialChart
                       beginYear={agg.beginYear}
                       endYear={agg.endYear}
-                      valueLabel="Real Monthly Withdrawal (After Tax & Inflation)"
+                      valueLabel="Real Monthly Income (After Tax & Inflation)"
                       series={realWithdrawal}
                     />
                   </>)}
@@ -272,7 +272,7 @@ function Steps(): JSX.Element {
                   <FinancialChart
                     beginYear={agg.beginYear}
                     endYear={agg.endYear}
-                    valueLabel="Monthly Withdrawal"
+                    valueLabel="Monthly Income"
                     series={agg.withdrawalSeries}
                   />
 

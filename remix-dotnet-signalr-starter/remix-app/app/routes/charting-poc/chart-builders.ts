@@ -247,71 +247,105 @@ export function buildTotalInvestmentAggregates(model: any): {
   balanceSeries: { name: string; values: Record<number, number | null>; strokeWidth?: number; strokeDasharray?: string }[];
   withdrawalSeries: { name: string; values: Record<number, number | null>; strokeWidth?: number; strokeDasharray?: string }[];
 } {
+  // Investments
   const invRoot: any = (model as any)?.investments;
   let investmentNames: string[] = [];
   if (invRoot) {
     if (invRoot.items && typeof invRoot.items === 'object') {
       investmentNames = Object.keys(invRoot.items).sort();
     } else if (!('items' in invRoot) && typeof invRoot === 'object') {
-      // legacy
-      investmentNames = Object.keys(invRoot).sort();
+      investmentNames = Object.keys(invRoot).sort(); // legacy structure
     }
   }
-  const taxRateAgg: number = normalizePct(model?.taxPercentage);
-  const inflRateAgg: number = normalizePct(model?.inflationPercentage);
-  if (!investmentNames.length) {
+  // Annuities
+  const annRoot: any = (model as any)?.annuities?.items;
+  const annuityNames: string[] = annRoot ? Object.keys(annRoot).sort() : [];
+
+  // If nothing at all, return empty stub
+  if (!investmentNames.length && !annuityNames.length) {
     const nowYear = new Date().getFullYear();
     return { beginYear: nowYear, endYear: nowYear, balanceSeries: [], withdrawalSeries: [] };
   }
-  const per = investmentNames.map((n) => buildInvestmentBalanceAndWithdrawalChart(n, model));
-  const beginYear = per.reduce((min, p) => Math.min(min, p.beginYear), per[0].beginYear);
-  const endYear = per.reduce((max, p) => Math.max(max, p.endYear), per[0].endYear);
 
+  const investmentSeries = investmentNames.map((n) => buildInvestmentBalanceAndWithdrawalChart(n, model));
+  const annuitySeries = annuityNames.map((n) => buildAnnuityMonthlyIncomeChart(n, model));
+
+  // Determine combined horizon
+  const beginYear = [...investmentSeries, ...annuitySeries].reduce((min, p: any) => Math.min(min, p.beginYear), (investmentSeries[0] || annuitySeries[0]).beginYear);
+  const endYear = [...investmentSeries, ...annuitySeries].reduce((max, p: any) => Math.max(max, p.endYear), (investmentSeries[0] || annuitySeries[0]).endYear);
+
+  const taxRateAgg: number = normalizePct(model?.taxPercentage);
+  const inflRateAgg: number = normalizePct(model?.inflationPercentage);
+
+  // Aggregates
   const totalBalance: Record<number, number> = {};
   const totalBalanceAfterTax: Record<number, number> = {};
   const totalBalanceRealAfterTax: Record<number, number> = {};
-  const totalWithdrawalGross: Record<number, number | null> = {};
-  const totalWithdrawalAfterTax: Record<number, number | null> = {};
-  const totalWithdrawalRealAfterTax: Record<number, number | null> = {};
+  const totalIncomeGross: Record<number, number | null> = {};
+  const totalIncomeAfterTax: Record<number, number | null> = {};
+  const totalIncomeRealAfterTax: Record<number, number | null> = {};
 
   for (let y = beginYear; y <= endYear; y++) {
+    // Balance only comes from investments
     let balSum = 0;
-    per.forEach(p => { const v = p.balance.values[y]; if (typeof v === 'number') balSum += v; });
-    totalBalance[y] = balSum;
-    const afterTaxBal = balSum * (1 - taxRateAgg);
-    totalBalanceAfterTax[y] = Math.round(afterTaxBal);
-    totalBalanceRealAfterTax[y] = Math.round(afterTaxBal / Math.pow(1 + inflRateAgg, y - beginYear));
+    investmentSeries.forEach(p => { const v = p.balance.values[y]; if (typeof v === 'number') balSum += v; });
+    if (investmentSeries.length) {
+      totalBalance[y] = balSum;
+      const afterTaxBal = balSum * (1 - taxRateAgg);
+      totalBalanceAfterTax[y] = Math.round(afterTaxBal);
+      totalBalanceRealAfterTax[y] = Math.round(afterTaxBal / Math.pow(1 + inflRateAgg, y - beginYear));
+    } else {
+      // If no investments, leave balance series empty (not adding nulls avoids stray legend entries)
+    }
 
-    let anyWithdrawal = false;
-    let wGross = 0; let wAfterTax = 0; let wRealAfterTax = 0;
-    per.forEach(p => {
+    let anyIncome = false;
+    let gSum = 0; let atSum = 0; let ratSum = 0;
+
+    // Investment withdrawals (monthly) act as income
+    investmentSeries.forEach(p => {
       const grossSeries = p.withdrawalSeries[0]?.values;
       const afterTaxSeries = p.withdrawalSeries[1]?.values;
       const realAfterTaxSeries = p.withdrawalSeries[2]?.values;
       const g = grossSeries ? grossSeries[y] : null;
       const at = afterTaxSeries ? afterTaxSeries[y] : null;
       const rat = realAfterTaxSeries ? realAfterTaxSeries[y] : null;
-      if (typeof g === 'number') { anyWithdrawal = true; wGross += g; }
-      if (typeof at === 'number') wAfterTax += at;
-      if (typeof rat === 'number') wRealAfterTax += rat;
+      if (typeof g === 'number') { anyIncome = true; gSum += g; }
+      if (typeof at === 'number') atSum += at;
+      if (typeof rat === 'number') ratSum += rat;
     });
-    totalWithdrawalGross[y] = anyWithdrawal ? Math.round(wGross) : null;
-    totalWithdrawalAfterTax[y] = anyWithdrawal ? Math.round(wAfterTax) : null;
-    totalWithdrawalRealAfterTax[y] = anyWithdrawal ? Math.round(wRealAfterTax) : null;
+
+    // Annuity monthly income
+    annuitySeries.forEach(a => {
+      const grossSeries = a.series[0]?.values;
+      const atSeries = a.series[1]?.values;
+      const ratSeries = a.series[2]?.values;
+      const g = grossSeries ? grossSeries[y] : null;
+      const at = atSeries ? atSeries[y] : null;
+      const rat = ratSeries ? ratSeries[y] : null;
+      if (typeof g === 'number') { anyIncome = true; gSum += g; }
+      if (typeof at === 'number') atSum += at;
+      if (typeof rat === 'number') ratSum += rat;
+    });
+
+    totalIncomeGross[y] = anyIncome ? Math.round(gSum) : null;
+    totalIncomeAfterTax[y] = anyIncome ? Math.round(atSum) : null;
+    totalIncomeRealAfterTax[y] = anyIncome ? Math.round(ratSum) : null;
   }
+
+  const balanceSeries = investmentSeries.length ? [
+    { name: 'Total Investment Balance', values: totalBalance, strokeWidth: 3 },
+    { name: 'Total Investment Balance After Tax', values: totalBalanceAfterTax, strokeDasharray: '5 4' },
+    { name: 'Total Investment Balance After Tax & Inflation', values: totalBalanceRealAfterTax, strokeDasharray: '2 3' }
+  ] : [];
 
   return {
     beginYear,
     endYear,
-    balanceSeries: [
-      { name: 'Total Investment Balance', values: totalBalance, strokeWidth: 3 },
-      { name: 'Total Investment Balance After Tax', values: totalBalanceAfterTax, strokeDasharray: '5 4' },
-      { name: 'Total Investment Balance After Tax & Inflation', values: totalBalanceRealAfterTax, strokeDasharray: '2 3' },
-    ],
+    balanceSeries,
     withdrawalSeries: [
-      { name: 'Total Monthly Withdrawal', values: totalWithdrawalGross, strokeDasharray: '4 4' },
-      { name: 'Total Monthly Withdrawal After Tax', values: totalWithdrawalAfterTax, strokeDasharray: '5 3' },
-      { name: 'Total Monthly Withdrawal After Tax & Inflation', values: totalWithdrawalRealAfterTax, strokeDasharray: '2 3' },
+      { name: 'Total Monthly Income', values: totalIncomeGross, strokeDasharray: '4 4' },
+      { name: 'Total Monthly Income After Tax', values: totalIncomeAfterTax, strokeDasharray: '5 3' },
+      { name: 'Total Monthly Income After Tax & Inflation', values: totalIncomeRealAfterTax, strokeDasharray: '2 3' },
     ]
   };
 }
