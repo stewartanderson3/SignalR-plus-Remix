@@ -81,6 +81,16 @@ function Steps(): JSX.Element {
     ...investmentNames.map(investmentStepNameFrom),
     ...annuityNames.map(annuityStepNameFrom)
   ];
+  const stepOrder = ([
+    "Planning",
+    "Setup",
+    ...dynamicStepNames,
+    dynamicStepNames.length > 0 ? "Summary" : null
+  ].filter(Boolean) as string[]);
+  const inCompleteSteps = stepOrder.filter((stepName) => {
+    const { path } = stepDetailsFromName(stepName);
+    return path && !(get(`${path}.isComplete`).from(model) as boolean);
+  });
 
   const steps: Record<string, JSX.Element> = {
     Planning: (
@@ -277,6 +287,20 @@ function Steps(): JSX.Element {
                 .map(s => ({ ...s, strokeDasharray: undefined, color: '#059669', strokeWidth: 3 }));
               return (
                 <>
+                  {inCompleteSteps.length > 0 && (
+                    <div className="alert alert-warning" style={{ color: 'red' }} role="alert" aria-live="assertive">
+                      There {inCompleteSteps.length === 1 ? "is" : "are"} {inCompleteSteps.length} incomplete step{inCompleteSteps.length === 1 ? "" : "s"}:
+                      <ul>
+                        {inCompleteSteps.map(incompleteStepName => <li
+                          style={{ fontWeight: 'bold' }}
+                          key={incompleteStepName}>
+                          {incompleteStepName}
+                        </li>)}
+                      </ul>
+                      Please complete {inCompleteSteps.length === 1 ? "it" : "them"} to ensure accurate results.
+                    </div>
+                  )}
+
                   {realWithdrawal.length > 0 && (<>
                     Monthly Income
                     <FinancialChart
@@ -321,13 +345,6 @@ function Steps(): JSX.Element {
     )
 
   };
-
-  const stepOrder = ([
-    "Planning",
-    "Setup",
-    ...dynamicStepNames,
-    dynamicStepNames.length > 0 ? "Summary" : null
-  ].filter(Boolean) as string[]);
 
   const {
     activeStep,
