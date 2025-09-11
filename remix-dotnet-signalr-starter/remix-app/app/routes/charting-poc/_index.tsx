@@ -390,7 +390,7 @@ function Steps(): JSX.Element {
                   {stepPath && (get(`${stepPath}.isComplete`).from(model)
                     ? <span style={{ color: 'green', fontWeight: 'bold' }}>✓ </span>
                     : <span style={{ color: 'red', fontWeight: 'bold' }}>X </span>)}
-                  {name}
+                  {stepId ?? name}
                 </button>
               ))}
             </div>
