@@ -84,21 +84,18 @@ export default function FinancialChart({
     });
   }, [years, normalizedSeries]);
 
-  // Compute Y min/max across all numeric values
+  // Compute Y max across all numeric values (force baseline at 0 per design requirement)
+  // Rationale: Product decision states all charts should have 0 at the bottom of the Y axis.
+  // We therefore ignore negative minima (if any appear they would be clipped). If future
+  // need arises to display negatives, introduce a prop (e.g. allowNegative) and adjust.
   const yDomain = useMemo<[number, number]>(() => {
     const vals: number[] = [];
     normalizedSeries.forEach((s) => s.data.forEach((p: YearValuePoint) => { if (typeof p.value === 'number' && isFinite(p.value)) vals.push(p.value); }));
     if (!vals.length) return [0, 1];
-    const min = Math.min(...vals);
-    const max = Math.max(...vals);
-    if (min === max) {
-      const pad = Math.abs(min) * 0.1 || 1;
-      return [min - pad, max + pad];
-    }
-    const range = max - min;
-    const pad = range * 0.05;
-    const lower = min < 0 ? min - pad : Math.max(0, min - pad);
-    return [Math.floor(lower), Math.ceil(max + pad)];
+    const max = Math.max(...vals, 0);
+    if (max === 0) return [0, 1]; // flat line safeguard
+    const pad = max * 0.05; // 5% visual headroom
+    return [0, Math.ceil(max + pad)];
   }, [normalizedSeries]);
 
   const formatter = useMemo(() => defaultCurrencyFormatter(currency), [currency]);
