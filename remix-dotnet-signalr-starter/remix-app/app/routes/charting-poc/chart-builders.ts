@@ -1,15 +1,40 @@
 // Centralized chart builder utility functions extracted from _index.tsx
 // Each function returns the data shape expected by the FinancialChart component.
 
-// Defensive helper: user/model percent values should already be fractional (0.0925 for 9.25%).
-// If a legacy or corrupted model stores 9.25 instead, we auto-normalize.
-function normalizePct(val: any): number {
-  const n = Number(val) || 0;
-  if (!isFinite(n)) return 0;
-  if (n > 1) return n / 100; // treat as whole percent
-  if (n < -1) return n / 100; // negative percent edge
-  return n;
+/** Date regex for very lightweight validation (MM/DD/YYYY). */
+const DATE_YEAR_REGEX = /^(\d{2})\/(\d{2})\/(\d{4})$/;
+
+/**
+ * Defensive helper: user/model percent values should already be fractional (0.0925 for 9.25%).
+ * If a legacy or corrupted model stores 9.25 instead, we auto-normalize.
+ */
+function normalizePct(val: unknown): number {
+  const n = Number(val);
+  if (!isFinite(n) || n === 0) return 0;
+  // Treat any magnitude > 1 (or < -1) as a whole-percent input.
+  return (n > 1 || n < -1) ? n / 100 : n;
 }
+
+/** Extract year integer from a date string (MM/DD/YYYY) or return undefined. */
+function extractYear(dateStr: unknown): number | undefined {
+  if (typeof dateStr !== 'string') return undefined;
+  const m = DATE_YEAR_REGEX.exec(dateStr);
+  return m ? Number(m[3]) : undefined;
+}
+
+/** Inflation adjust an after-tax nominal value back to base year purchasing power. */
+function adjustForInflation(afterTaxValue: number, year: number, beginYear: number, inflRate: number): number {
+  if (!inflRate) return afterTaxValue; // fast path
+  const yearsOffset = year - beginYear;
+  return afterTaxValue / Math.pow(1 + inflRate, yearsOffset);
+}
+
+/** Small utility to round (Math.round) consistently. */
+const R = Math.round;
+
+/** Inclusive year range utility. */
+const rangeYears = (begin: number, end: number): number[] =>
+  Array.from({ length: end - begin + 1 }, (_, i) => begin + i);
 
 export function buildWageMonthlyIncomeChart(wageName: string, model: any): {
   beginYear: number;
@@ -17,36 +42,33 @@ export function buildWageMonthlyIncomeChart(wageName: string, model: any): {
   valueLabel: string;
   series: { name: string; values: Record<number, number>; strokeWidth?: number; strokeDasharray?: string }[];
 } {
-  const wageData: any = (model as any)?.wages?.items?.[wageName] || {};
-  const annual: number = Number(wageData?.annual) || 0;
-  // Percent inputs are already stored as fractional decimals (e.g. 0.0925) by the percent TextInput component.
-  const raise: number = normalizePct(wageData?.raise);
-  const taxRate: number = normalizePct((model as any)?.taxPercentage);
-  const inflRate: number = normalizePct((model as any)?.inflationPercentage);
-  const stopWorkDateStr: string | undefined = wageData?.stopWorkDate;
+  const wageData: any = model?.wages?.items?.[wageName] || {};
+  const annual: number = Number(wageData.annual) || 0;
+  const raise: number = normalizePct(wageData.raise); // fractional
+  const taxRate: number = normalizePct(model?.taxPercentage);
+  const inflRate: number = normalizePct(model?.inflationPercentage);
   const beginYear = new Date().getFullYear();
-  let endYear = beginYear;
-  const planningHorizonYears = Number((model as any)?.planningHorizonYears) || undefined;
-  if (stopWorkDateStr && /\d{2}\/\d{2}\/\d{4}/.test(stopWorkDateStr)) {
-    endYear = Number(stopWorkDateStr.split('/')[2]) || beginYear;
-  }
-  if (planningHorizonYears && planningHorizonYears > 0) {
-    endYear = beginYear + planningHorizonYears - 1;
-  }
+  const planningHorizonYears = Number(model?.planningHorizonYears) || undefined;
+  // Horizon preference: planning horizon overrides stop work.
+  const stopWorkYear = extractYear(wageData.stopWorkDate);
+  let endYear = planningHorizonYears && planningHorizonYears > 0
+    ? beginYear + planningHorizonYears - 1
+    : (stopWorkYear ?? beginYear);
   if (endYear < beginYear) endYear = beginYear; // guard
-  const grossValues: Record<number, number> = {};
-  const afterTaxValues: Record<number, number> = {};
-  const realAfterTaxValues: Record<number, number> = {};
-  for (let y = beginYear; y <= endYear; y++) {
-    const growthFactor = Math.pow(1 + raise, y - beginYear);
-    const monthlyIncome = annual * growthFactor / 12;
-    const gross = Math.round(monthlyIncome);
-    const afterTax = Math.round(monthlyIncome * (1 - taxRate));
-    const realAfterTax = Math.round(afterTax / Math.pow(1 + inflRate, y - beginYear));
-    grossValues[y] = gross;
-    afterTaxValues[y] = afterTax;
-    realAfterTaxValues[y] = realAfterTax;
-  }
+
+  const years = rangeYears(beginYear, endYear);
+  const raiseMultiplier = 1 + raise; // growth per year
+  const wageYearTuples = years.map((y, idx) => {
+    const annualForYear = annual * Math.pow(raiseMultiplier, idx);
+    const monthlyIncome = annualForYear / 12;
+    const gross = R(monthlyIncome);
+    const afterTax = R(monthlyIncome * (1 - taxRate));
+    const realAfterTax = R(adjustForInflation(afterTax, y, beginYear, inflRate));
+    return [y, gross, afterTax, realAfterTax] as const;
+  });
+  const grossValues = Object.fromEntries(wageYearTuples.map(t => [t[0], t[1]])) as Record<number, number>;
+  const afterTaxValues = Object.fromEntries(wageYearTuples.map(t => [t[0], t[2]])) as Record<number, number>;
+  const realAfterTaxValues = Object.fromEntries(wageYearTuples.map(t => [t[0], t[3]])) as Record<number, number>;
   return {
     beginYear,
     endYear,
@@ -74,99 +96,94 @@ export function buildInvestmentBalanceAndWithdrawalChart(investmentName: string,
   balance: { name: string; values: Record<number, number>; strokeWidth?: number };
   withdrawalSeries: { name: string; values: Record<number, number | null>; strokeDasharray?: string; strokeWidth?: number }[];
 } {
-  const investmentRoot: any = (model as any)?.investments;
-  const investment: any = investmentRoot?.items?.[investmentName] || (investmentRoot && !('items' in investmentRoot) ? investmentRoot?.[investmentName] : {}) || {};
-  const initialBalance: number = Number(investment?.balance) || 0;
-  const rate: number = normalizePct(investment?.rate);
-  const withdrawalDateStr: string | undefined = investment?.withdrawalDate; // MM/DD/YYYY
-  const withdrawalRate: number = normalizePct(investment?.withdrawalRate);
-  // New contributions inputs
-  // contributionsFrom is a wage name (selected from wages list), not a date. We contribute a % of that wage's annual amount (with raises) each year until the wage stopWorkDate.
-  const contributionsFromWage: string | undefined = investment?.contributionsFrom; // wage name
-  const contributionRate: number = normalizePct(investment?.contributionRate);
-  const taxRate: number = normalizePct((model as any)?.taxPercentage);
-  const inflRate: number = normalizePct((model as any)?.inflationPercentage);
-  const retireDateStr: string | undefined = model?.retireDate;
+  const investmentRoot: any = model?.investments;
+  const investment: any = investmentRoot?.items?.[investmentName]
+    || (investmentRoot && !('items' in investmentRoot) ? investmentRoot?.[investmentName] : {})
+    || {};
+
+  const initialBalance: number = Number(investment.balance) || 0;
+  const rate: number = normalizePct(investment.rate);
+  const withdrawalRate: number = normalizePct(investment.withdrawalRate);
+  const contributionsFromWage: string | undefined = investment.contributionsFrom;
+  const contributionRate: number = normalizePct(investment.contributionRate);
+  const taxRate: number = normalizePct(model?.taxPercentage);
+  const inflRate: number = normalizePct(model?.inflationPercentage);
   const yearsAfterRetire: number = Number(model?.yearsAfterRetire) || 0;
-  const planningHorizonYears = Number((model as any)?.planningHorizonYears) || undefined;
+  const planningHorizonYears = Number(model?.planningHorizonYears) || undefined;
+
   const nowYear = new Date().getFullYear();
   const beginYear = nowYear;
-  let retireYear: number | undefined;
-  if (retireDateStr && /\d{2}\/\d{2}\/\d{4}/.test(retireDateStr)) retireYear = Number(retireDateStr.split('/')[2]);
-  let endYear = retireYear ? retireYear + yearsAfterRetire : nowYear + 10; // fallback horizon
+  const retireYear = extractYear(model?.retireDate);
+  const withdrawalYear = extractYear(investment.withdrawalDate);
+
+  let endYear = retireYear ? retireYear + yearsAfterRetire : nowYear + 10;
   if (planningHorizonYears && planningHorizonYears > 0) {
     endYear = beginYear + planningHorizonYears - 1;
   }
-  let withdrawalYear: number | undefined;
-  if (withdrawalDateStr && /\d{2}\/\d{2}\/\d{4}/.test(withdrawalDateStr)) withdrawalYear = Number(withdrawalDateStr.split('/')[2]);
 
-  // Wage reference (if any) for contributions
+  // Wage reference (if any) for contributions.
   let wageAnnualBase = 0;
   let wageRaise = 0;
   let wageStopWorkYear: number | undefined;
   if (contributionsFromWage) {
-    const wageData: any = (model as any)?.wages?.items?.[contributionsFromWage];
+    const wageData: any = model?.wages?.items?.[contributionsFromWage];
     if (wageData) {
       wageAnnualBase = Number(wageData.annual) || 0;
       wageRaise = normalizePct(wageData.raise);
-      const swd: string | undefined = wageData.stopWorkDate;
-      if (swd && /\d{2}\/\d{2}\/\d{4}/.test(swd)) wageStopWorkYear = Number(swd.split('/')[2]);
+      wageStopWorkYear = extractYear(wageData.stopWorkDate);
     }
   }
 
+  // Flags and caches
   const enableLegacyBalancePctFallback = false;
+  const continuousGrowthMultiplier = Math.exp(rate) - 1; // (e^r - 1)
+  const wageRaiseMultiplier = 1 + wageRaise;
+  let wageAnnualForYear = wageAnnualBase; // incremental growth
 
-  const balanceValues: Record<number, number> = {};
-  const withdrawalMonthlyValues: Record<number, number | null> = {};
-  const withdrawalAfterTaxValues: Record<number, number | null> = {};
-  const withdrawalRealAfterTaxValues: Record<number, number | null> = {};
-
-  let balanceStartOfYear = initialBalance; // starting balance for current year (end of previous year)
-  for (let y = beginYear; y <= endYear; y++) {
-    // 1. Contribution at start of year.
-    // If wage referenced: contribution = wageAnnualForYear * contributionRate (only through wage stopWorkYear).
-    // Else (legacy fallback): contribution = starting balance * contributionRate.
-    let contributionAnnual = 0;
-    if (contributionRate > 0) {
-      if (contributionsFromWage && wageAnnualBase > 0) {
-        const withinWageYears = wageStopWorkYear === undefined || y <= wageStopWorkYear;
-        if (withinWageYears) {
-          const wageAnnualForYear = wageAnnualBase * Math.pow(1 + wageRaise, y - beginYear);
-          contributionAnnual = wageAnnualForYear * contributionRate;
-        }
-      } else if (enableLegacyBalancePctFallback) {
-        // Legacy (disabled) interpretation: percentage of starting balance each year (compounds contributions)
-        contributionAnnual = balanceStartOfYear * contributionRate;
-      }
-    }
+  const years = rangeYears(beginYear, endYear);
+  const results = years.reduce((acc, y, idx) => {
+    const balanceStartOfYear = idx === 0 ? initialBalance : acc.prevBalanceEnd;
+    const withinWageYears = (wageStopWorkYear === undefined) || y <= wageStopWorkYear;
+    const wageAnnualForYearStatic = wageAnnualBase > 0
+      ? wageAnnualBase * Math.pow(wageRaiseMultiplier, idx)
+      : 0;
+    const contributionAnnual = contributionRate > 0
+      ? contributionsFromWage && wageAnnualBase > 0
+        ? (withinWageYears ? wageAnnualForYearStatic * contributionRate : 0)
+        : (enableLegacyBalancePctFallback ? balanceStartOfYear * contributionRate : 0)
+      : 0;
     const balanceAfterContribution = balanceStartOfYear + contributionAnnual;
+    const balanceAfterGrowth = balanceAfterContribution + balanceAfterContribution * continuousGrowthMultiplier;
+    const shouldWithdraw = withdrawalYear !== undefined && y >= withdrawalYear && withdrawalRate > 0;
+    const withdrawalAnnualRaw = shouldWithdraw ? balanceStartOfYear * withdrawalRate : 0;
+    const withdrawalAnnual = shouldWithdraw && withdrawalAnnualRaw > balanceAfterGrowth
+      ? balanceAfterGrowth
+      : withdrawalAnnualRaw;
+    const postWithdrawalBalance = balanceAfterGrowth - withdrawalAnnual;
+    const grossMonthly = withdrawalAnnual / 12;
+    const afterTax = grossMonthly * (1 - taxRate);
+    const realAfterTax = adjustForInflation(afterTax, y, beginYear, inflRate);
+    const grossMonthlyVal = shouldWithdraw ? R(grossMonthly) : null;
+    const afterTaxVal = shouldWithdraw ? R(afterTax) : null;
+    const realAfterTaxVal = shouldWithdraw ? R(realAfterTax) : null;
+    acc.balance[y] = R(postWithdrawalBalance);
+    acc.wGross[y] = grossMonthlyVal;
+    acc.wAfterTax[y] = afterTaxVal;
+    acc.wRealAfterTax[y] = realAfterTaxVal;
+    acc.prevBalanceEnd = postWithdrawalBalance;
+    return acc;
+  }, {
+    balance: {} as Record<number, number>,
+    wGross: {} as Record<number, number | null>,
+    wAfterTax: {} as Record<number, number | null>,
+    wRealAfterTax: {} as Record<number, number | null>,
+    prevBalanceEnd: initialBalance,
+  });
 
-    // 2. Growth on post-contribution balance (continuous compounding)
-    // Continuous: A * e^{r} => growth portion = A * (e^{r} - 1)
-    const growthAmount = balanceAfterContribution * (Math.exp(rate) - 1);
-    let balanceAfterGrowth = balanceAfterContribution + growthAmount;
-
-
-    // 3. Withdrawal (if within or after withdrawalYear)
-    let withdrawalAnnual = 0;
-    if (withdrawalYear !== undefined && y >= withdrawalYear && withdrawalRate > 0) {
-      withdrawalAnnual = balanceStartOfYear * withdrawalRate; // based on starting balance assumption
-      if (withdrawalAnnual > balanceAfterGrowth) withdrawalAnnual = balanceAfterGrowth; // cap
-      balanceAfterGrowth -= withdrawalAnnual;
-      const grossMonthly = withdrawalAnnual / 12;
-      withdrawalMonthlyValues[y] = Math.round(grossMonthly);
-      const afterTax = grossMonthly * (1 - taxRate);
-      withdrawalAfterTaxValues[y] = Math.round(afterTax);
-      const realAfterTax = afterTax / Math.pow(1 + inflRate, y - beginYear);
-      withdrawalRealAfterTaxValues[y] = Math.round(realAfterTax);
-    } else {
-      withdrawalMonthlyValues[y] = null; // null so line starts at first withdrawal year
-      withdrawalAfterTaxValues[y] = null;
-      withdrawalRealAfterTaxValues[y] = null;
-    }
-    balanceValues[y] = Math.round(balanceAfterGrowth);
-    balanceStartOfYear = balanceAfterGrowth; // next loop
-  }
+  const balanceValues = results.balance;
+  const withdrawalMonthlyValues = results.wGross;
+  const withdrawalAfterTaxValues = results.wAfterTax;
+  const withdrawalRealAfterTaxValues = results.wRealAfterTax;
 
   return {
     beginYear,
@@ -191,41 +208,35 @@ export function buildAnnuityMonthlyIncomeChart(annuityName: string, model: any):
   valueLabel: string;
   series: { name: string; values: Record<number, number | null>; strokeWidth?: number; strokeDasharray?: string }[];
 } {
-  const annuity: any = (model as any)?.annuities?.items?.[annuityName] || {};
-  const monthly: number = Number(annuity?.monthly) || 0;
-  const startDateStr: string | undefined = annuity?.startDate;
-  const nowYear = new Date().getFullYear();
-  const retireDateStr: string | undefined = model?.retireDate;
+  const annuity: any = model?.annuities?.items?.[annuityName] || {};
+  const monthly: number = Number(annuity.monthly) || 0;
+  const taxRate: number = normalizePct(model?.taxPercentage);
+  const inflRate: number = normalizePct(model?.inflationPercentage);
   const yearsAfterRetire: number = Number(model?.yearsAfterRetire) || 0;
-  const planningHorizonYears = Number((model as any)?.planningHorizonYears) || undefined;
-  const taxRate: number = normalizePct((model as any)?.taxPercentage);
-  const inflRate: number = normalizePct((model as any)?.inflationPercentage);
-  let retireYear: number | undefined;
-  if (retireDateStr && /\d{2}\/\d{2}\/\d{4}/.test(retireDateStr)) retireYear = Number(retireDateStr.split('/')[2]);
+  const planningHorizonYears = Number(model?.planningHorizonYears) || undefined;
+
+  const nowYear = new Date().getFullYear();
   const beginYear = nowYear;
+  const retireYear = extractYear(model?.retireDate);
+  const startYear = extractYear(annuity.startDate);
   let endYear = retireYear ? retireYear + yearsAfterRetire : nowYear + 10;
   if (planningHorizonYears && planningHorizonYears > 0) {
     endYear = beginYear + planningHorizonYears - 1;
   }
-  let startYear: number | undefined;
-  if (startDateStr && /\d{2}\/\d{2}\/\d{4}/.test(startDateStr)) startYear = Number(startDateStr.split('/')[2]);
-  const grossValues: Record<number, number | null> = {};
-  const afterTaxValues: Record<number, number | null> = {};
-  const realAfterTaxValues: Record<number, number | null> = {};
-  for (let y = beginYear; y <= endYear; y++) {
-    if (startYear !== undefined && y >= startYear) {
-      const gross = monthly ? Math.round(monthly) : 0;
-      const afterTax = Math.round(gross * (1 - taxRate));
-      const realAfterTax = Math.round(afterTax / Math.pow(1 + inflRate, y - beginYear));
-      grossValues[y] = gross;
-      afterTaxValues[y] = afterTax;
-      realAfterTaxValues[y] = realAfterTax;
-    } else {
-      grossValues[y] = null;
-      afterTaxValues[y] = null;
-      realAfterTaxValues[y] = null; // so line starts at first payment year
-    }
-  }
+
+  const years = rangeYears(beginYear, endYear);
+  const annuityYearTuples = years.map(y => {
+    const active = startYear !== undefined && y >= startYear;
+    const gross = active ? (monthly ? R(monthly) : 0) : null;
+    const afterTax = gross !== null ? R(gross * (1 - taxRate)) : null;
+    const realAfterTax = gross !== null && afterTax !== null
+      ? R(adjustForInflation(afterTax, y, beginYear, inflRate))
+      : null;
+    return [y, gross, afterTax, realAfterTax] as const;
+  });
+  const grossValues = Object.fromEntries(annuityYearTuples.map(t => [t[0], t[1]])) as Record<number, number | null>;
+  const afterTaxValues = Object.fromEntries(annuityYearTuples.map(t => [t[0], t[2]])) as Record<number, number | null>;
+  const realAfterTaxValues = Object.fromEntries(annuityYearTuples.map(t => [t[0], t[3]])) as Record<number, number | null>;
   return {
     beginYear,
     endYear,
@@ -247,120 +258,104 @@ export function buildTotalInvestmentAggregates(model: any): {
   balanceSeries: { name: string; values: Record<number, number | null>; strokeWidth?: number; strokeDasharray?: string }[];
   withdrawalSeries: { name: string; values: Record<number, number | null>; strokeWidth?: number; strokeDasharray?: string }[];
 } {
-  // Investments
-  const invRoot: any = (model as any)?.investments;
+  // Investments (normal + legacy structure handling)
+  const invRoot: any = model?.investments;
   let investmentNames: string[] = [];
   if (invRoot) {
-    if (invRoot.items && typeof invRoot.items === 'object') {
-      investmentNames = Object.keys(invRoot.items).sort();
-    } else if (!('items' in invRoot) && typeof invRoot === 'object') {
-      investmentNames = Object.keys(invRoot).sort(); // legacy structure
-    }
+    if (invRoot.items && typeof invRoot.items === 'object') investmentNames = Object.keys(invRoot.items).sort();
+    else if (!('items' in invRoot) && typeof invRoot === 'object') investmentNames = Object.keys(invRoot).sort();
   }
-  // Wages
-  const wageRoot: any = (model as any)?.wages?.items;
+
+  const wageRoot: any = model?.wages?.items;
   const wageNames: string[] = wageRoot ? Object.keys(wageRoot).sort() : [];
-  // Annuities
-  const annRoot: any = (model as any)?.annuities?.items;
+  const annRoot: any = model?.annuities?.items;
   const annuityNames: string[] = annRoot ? Object.keys(annRoot).sort() : [];
 
-  // If nothing at all, return empty stub
+  // Nothing => empty stub
   if (!investmentNames.length && !annuityNames.length && !wageNames.length) {
     const nowYear = new Date().getFullYear();
     return { beginYear: nowYear, endYear: nowYear, balanceSeries: [], withdrawalSeries: [] };
   }
 
-  const investmentSeries = investmentNames.map((n) => buildInvestmentBalanceAndWithdrawalChart(n, model));
-  const annuitySeries = annuityNames.map((n) => buildAnnuityMonthlyIncomeChart(n, model));
-  const wageSeries = wageNames.map((n) => buildWageMonthlyIncomeChart(n, model));
-  // Map wage stop work years for suppression in aggregation to avoid overlap spike.
-  const wageStopWorkYears: Record<string, number | undefined> = {};
-  wageNames.forEach(n => {
-    const swd: string | undefined = wageRoot?.[n]?.stopWorkDate;
-    if (swd && /\d{2}\/\d{2}\/\d{4}/.test(swd)) {
-      wageStopWorkYears[n] = Number(swd.split('/')[2]);
-    }
-  });
+  const investmentSeries = investmentNames.map(n => buildInvestmentBalanceAndWithdrawalChart(n, model));
+  const annuitySeries = annuityNames.map(n => buildAnnuityMonthlyIncomeChart(n, model));
+  const wageSeries = wageNames.map(n => buildWageMonthlyIncomeChart(n, model));
 
-  // Determine combined horizon
+  // Pre-compute wage stop-work years for spike suppression.
+  const wageStopWorkYears: Record<string, number | undefined> = {};
+  wageNames.forEach(n => { wageStopWorkYears[n] = extractYear(wageRoot?.[n]?.stopWorkDate); });
+
+  // Determine combined horizon.
   const horizonSources: any[] = [...investmentSeries, ...annuitySeries, ...wageSeries];
-  const beginYear = horizonSources.reduce((min, p: any) => Math.min(min, p.beginYear), horizonSources[0].beginYear);
-  const endYear = horizonSources.reduce((max, p: any) => Math.max(max, p.endYear), horizonSources[0].endYear);
+  const beginYear = horizonSources.reduce((min, p: any) => p.beginYear < min ? p.beginYear : min, horizonSources[0].beginYear);
+  const endYear = horizonSources.reduce((max, p: any) => p.endYear > max ? p.endYear : max, horizonSources[0].endYear);
 
   const taxRateAgg: number = normalizePct(model?.taxPercentage);
   const inflRateAgg: number = normalizePct(model?.inflationPercentage);
 
   // Aggregates
-  const totalBalance: Record<number, number> = {};
-  const totalBalanceAfterTax: Record<number, number> = {};
-  const totalBalanceRealAfterTax: Record<number, number> = {};
-  const totalIncomeGross: Record<number, number | null> = {};
-  const totalIncomeAfterTax: Record<number, number | null> = {};
-  const totalIncomeRealAfterTax: Record<number, number | null> = {};
+  const years = rangeYears(beginYear, endYear);
+  const aggregates = years.map(y => {
+    // Balance sums
+    const balSum = investmentSeries.reduce((sum, p) => {
+      const v = p.balance.values[y];
+      return typeof v === 'number' ? sum + v : sum;
+    }, 0);
+    const afterTaxBal = balSum * (1 - taxRateAgg);
+    const realAfterTaxBal = adjustForInflation(afterTaxBal, y, beginYear, inflRateAgg);
 
-  for (let y = beginYear; y <= endYear; y++) {
-    // Balance only comes from investments
-    let balSum = 0;
-    investmentSeries.forEach(p => { const v = p.balance.values[y]; if (typeof v === 'number') balSum += v; });
-    if (investmentSeries.length) {
-      totalBalance[y] = balSum;
-      const afterTaxBal = balSum * (1 - taxRateAgg);
-      totalBalanceAfterTax[y] = Math.round(afterTaxBal);
-      totalBalanceRealAfterTax[y] = Math.round(afterTaxBal / Math.pow(1 + inflRateAgg, y - beginYear));
-    } else {
-      // If no investments, leave balance series empty (not adding nulls avoids stray legend entries)
-    }
+    // Income components helper
+    const collect = (g?: number | null, at?: number | null, rat?: number | null) => ({ g, at, rat });
+    const incomeParts = [
+      ...investmentSeries.map(p => collect(
+        p.withdrawalSeries[0]?.values[y],
+        p.withdrawalSeries[1]?.values[y],
+        p.withdrawalSeries[2]?.values[y]
+      )),
+      ...annuitySeries.map(a => collect(
+        a.series[0]?.values[y],
+        a.series[1]?.values[y],
+        a.series[2]?.values[y]
+      )),
+      ...wageSeries.map((w, i) => {
+        const stopYear = wageStopWorkYears[wageNames[i]];
+        return (stopYear !== undefined && y === stopYear)
+          ? collect(null, null, null)
+          : collect(w.series[0]?.values[y], w.series[1]?.values[y], w.series[2]?.values[y]);
+      })
+    ];
 
-    let anyIncome = false;
-    let gSum = 0; let atSum = 0; let ratSum = 0;
+    const { gSum, atSum, ratSum, anyIncome } = incomeParts.reduce((acc, part) => {
+      if (typeof part.g === 'number') { acc.gSum += part.g; acc.anyIncome = true; }
+      if (typeof part.at === 'number') acc.atSum += part.at;
+      if (typeof part.rat === 'number') acc.ratSum += part.rat;
+      return acc;
+    }, { gSum: 0, atSum: 0, ratSum: 0, anyIncome: false });
 
-    // Investment withdrawals (monthly) act as income
-    investmentSeries.forEach(p => {
-      const grossSeries = p.withdrawalSeries[0]?.values;
-      const afterTaxSeries = p.withdrawalSeries[1]?.values;
-      const realAfterTaxSeries = p.withdrawalSeries[2]?.values;
-      const g = grossSeries ? grossSeries[y] : null;
-      const at = afterTaxSeries ? afterTaxSeries[y] : null;
-      const rat = realAfterTaxSeries ? realAfterTaxSeries[y] : null;
-      if (typeof g === 'number') { anyIncome = true; gSum += g; }
-      if (typeof at === 'number') atSum += at;
-      if (typeof rat === 'number') ratSum += rat;
-    });
+    return {
+      y,
+      bal: balSum,
+      balAT: afterTaxBal,
+      balRealAT: realAfterTaxBal,
+      g: anyIncome ? gSum : null,
+      at: anyIncome ? atSum : null,
+      rat: anyIncome ? ratSum : null,
+    };
+  });
 
-    // Annuity monthly income
-    annuitySeries.forEach(a => {
-      const grossSeries = a.series[0]?.values;
-      const atSeries = a.series[1]?.values;
-      const ratSeries = a.series[2]?.values;
-      const g = grossSeries ? grossSeries[y] : null;
-      const at = atSeries ? atSeries[y] : null;
-      const rat = ratSeries ? ratSeries[y] : null;
-      if (typeof g === 'number') { anyIncome = true; gSum += g; }
-      if (typeof at === 'number') atSum += at;
-      if (typeof rat === 'number') ratSum += rat;
-    });
+  const totalBalance = investmentSeries.length
+    ? Object.fromEntries(aggregates.map(a => [a.y, a.bal])) as Record<number, number>
+    : {};
+  const totalBalanceAfterTax = investmentSeries.length
+    ? Object.fromEntries(aggregates.map(a => [a.y, R(a.balAT)])) as Record<number, number>
+    : {};
+  const totalBalanceRealAfterTax = investmentSeries.length
+    ? Object.fromEntries(aggregates.map(a => [a.y, R(a.balRealAT)])) as Record<number, number>
+    : {};
 
-    // Wage monthly income (NEW: include wages in total income aggregation)
-    wageSeries.forEach((w, idx) => {
-      const wageName = wageNames[idx];
-      const stopYear = wageStopWorkYears[wageName];
-      // Suppress the LAST year of wages in total aggregation to prevent spike / double-dip when withdrawals begin same year.
-      if (stopYear !== undefined && y === stopYear) return; // skip adding wages for this terminal year
-      const grossSeries = w.series[0]?.values;
-      const atSeries = w.series[1]?.values;
-      const ratSeries = w.series[2]?.values;
-      const g = grossSeries ? (grossSeries as any)[y] : null;
-      const at = atSeries ? (atSeries as any)[y] : null;
-      const rat = ratSeries ? (ratSeries as any)[y] : null;
-      if (typeof g === 'number') { anyIncome = true; gSum += g; }
-      if (typeof at === 'number') atSum += at;
-      if (typeof rat === 'number') ratSum += rat;
-    });
-
-    totalIncomeGross[y] = anyIncome ? Math.round(gSum) : null;
-    totalIncomeAfterTax[y] = anyIncome ? Math.round(atSum) : null;
-    totalIncomeRealAfterTax[y] = anyIncome ? Math.round(ratSum) : null;
-  }
+  const totalIncomeGross = Object.fromEntries(aggregates.map(a => [a.y, a.g])) as Record<number, number | null>;
+  const totalIncomeAfterTax = Object.fromEntries(aggregates.map(a => [a.y, a.at])) as Record<number, number | null>;
+  const totalIncomeRealAfterTax = Object.fromEntries(aggregates.map(a => [a.y, a.rat])) as Record<number, number | null>;
 
   const balanceSeries = investmentSeries.length ? [
     { name: 'Total Investment Balance', values: totalBalance, strokeWidth: 3 },
