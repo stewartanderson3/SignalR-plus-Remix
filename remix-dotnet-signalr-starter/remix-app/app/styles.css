@@ -95,8 +95,4 @@ label { display:flex; flex-direction:column; font-size:.85rem; gap:.25rem; margi
 @keyframes pulseFade { 0% { opacity:.25; } 50% { opacity:.7; } 100% { opacity:.25; } }
 .skeleton { background: linear-gradient(90deg, var(--color-surface-alt), var(--color-surface), var(--color-surface-alt)); background-size:200% 100%; animation: pulseFade 1.4s infinite; border-radius: var(--radius-sm); }
 
-/* Scrollbars (webkit) */
-::-webkit-scrollbar { width:10px; height:10px; }
-::-webkit-scrollbar-track { background: var(--color-surface-alt); }
-::-webkit-scrollbar-thumb { background: var(--color-border); border:2px solid var(--color-surface-alt); border-radius:20px; }
-::-webkit-scrollbar-thumb:hover { background: var(--color-primary); }
+
