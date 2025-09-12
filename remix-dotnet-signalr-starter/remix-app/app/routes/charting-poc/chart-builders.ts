@@ -292,9 +292,45 @@ export function buildTotalInvestmentAggregates(model: any): {
 
   const taxRateAgg: number = normalizePct(model?.taxPercentage);
   const inflRateAgg: number = normalizePct(model?.inflationPercentage);
+  // Will populate after years are known.
+  const contributionsPerWageYear: Record<string, Record<number, number>> = {};
 
   // Aggregates
   const years = rangeYears(beginYear, endYear);
+
+  // Pre-compute per-wage per-year contribution (monthly) amounts so we can subtract them from wage income.
+  // Assumptions:
+  //  * Contributions are pre-tax (so after-tax income reduced by contribution * (1 - taxRate)).
+  //  * Inflation-adjusted after-tax income subtracts inflation-adjusted after-tax portion.
+  if (investmentNames.length && wageNames.length) {
+    wageNames.forEach(wName => { contributionsPerWageYear[wName] = {}; });
+    const wageMeta: Record<string, { base: number; raise: number; stop?: number }> = {};
+    wageNames.forEach(wName => {
+      const w = wageRoot?.[wName] || {};
+      wageMeta[wName] = {
+        base: Number(w.annual) || 0,
+        raise: normalizePct(w.raise),
+        stop: extractYear(w.stopWorkDate)
+      };
+    });
+    investmentNames.forEach(invName => {
+      const inv: any = (invRoot?.items && invRoot.items[invName]) || (!('items' in (invRoot || {})) ? invRoot?.[invName] : undefined) || {};
+      const fromWage: string | undefined = inv.contributionsFrom;
+      if (!fromWage || !(fromWage in wageMeta)) return;
+      const cRate = normalizePct(inv.contributionRate);
+      if (!cRate) return;
+      const meta = wageMeta[fromWage];
+      years.forEach(y => {
+        if (meta.stop !== undefined && y > meta.stop) return;
+        if (y < beginYear) return;
+        const idx = y - beginYear; // wages start at beginYear (nowYear for wage charts)
+        const annualForYear = meta.base * Math.pow(1 + meta.raise, idx);
+        const annualContribution = annualForYear * cRate;
+        const monthlyContribution = annualContribution / 12;
+        contributionsPerWageYear[fromWage][y] = (contributionsPerWageYear[fromWage][y] || 0) + monthlyContribution;
+      });
+    });
+  }
   const aggregates = years.map(y => {
     // Balance sums
     const balSum = investmentSeries.reduce((sum, p) => {
@@ -318,10 +354,23 @@ export function buildTotalInvestmentAggregates(model: any): {
         a.series[2]?.values[y]
       )),
       ...wageSeries.map((w, i) => {
-        const stopYear = wageStopWorkYears[wageNames[i]];
-        return (stopYear !== undefined && y === stopYear)
-          ? collect(null, null, null)
-          : collect(w.series[0]?.values[y], w.series[1]?.values[y], w.series[2]?.values[y]);
+        const wageName = wageNames[i];
+        const stopYear = wageStopWorkYears[wageName];
+        if (stopYear !== undefined && y === stopYear) return collect(null, null, null); // hide spike at final year
+        const gross = w.series[0]?.values[y];
+        const afterTax = w.series[1]?.values[y];
+        const realAfterTax = w.series[2]?.values[y];
+        if (typeof gross !== 'number') return collect(gross as any, afterTax as any, realAfterTax as any);
+        const contribMonthly = contributionsPerWageYear[wageName]?.[y] || 0;
+        if (!contribMonthly) return collect(gross, afterTax as any, realAfterTax as any);
+        // Pre-tax contribution reduces gross. After-tax reduction is contribution * (1 - taxRateAgg).
+        const contribAfterTax = contribMonthly * (1 - taxRateAgg);
+        const adjGross = Math.max(0, R(gross - contribMonthly));
+        const adjAfterTax = (typeof afterTax === 'number') ? Math.max(0, R(afterTax - contribAfterTax)) : afterTax;
+        const adjRealAfterTax = (typeof realAfterTax === 'number')
+          ? Math.max(0, R(realAfterTax - adjustForInflation(contribAfterTax, y, beginYear, inflRateAgg)))
+          : realAfterTax;
+        return collect(adjGross, adjAfterTax as any, adjRealAfterTax as any);
       })
     ];
 
