@@ -30,7 +30,7 @@ interface StepApi {
 
 const Validators = {
   required: (value: string | undefined | null) =>
-    (value === null || value === undefined) && ["Value is required"],
+    (value === null || value === undefined || value.toString().trim() === "") && ["Value is required"],
   isDate: (value: string | undefined | null) => value && /^\d{2}\/\d{2}\/\d{4}$/.test(value.toString())
     ? false
     : ["Date must be in MM/DD/YYYY format"],

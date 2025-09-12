@@ -11,18 +11,13 @@ export interface TextInputProps extends Omit<React.InputHTMLAttributes<HTMLInput
 
 export function TextInput(props: TextInputProps): JSX.Element {
   const { autofocus, value, onChange, ...otherProps } = props;
-  // (Legacy helper removed; using inline handlers now)
+  const [intermediateValue, setIntermediateValue] = useState<string | undefined>();
   const theInput = useRef<HTMLInputElement | { focus: () => void }>({ focus: noOp });
   const displays = {
     percent: (val: string | number | undefined) => {
-      if (val === undefined || val === null || val === "") return "";
-      const num = typeof val === "number" ? val : parseFloat(val as string);
-      if (isNaN(num)) return "";
-      const pct = num * 100;
-      let str = pct.toFixed(8);
-      str = str.replace(/\.0+$/, "");
-      str = str.replace(/(\.[0-9]*?)0+$/, "$1");
-      return str;
+      return intermediateValue || intermediateValue === "" ? intermediateValue
+        : val === "" ? val
+          : (val as number * 100).toLocaleString(undefined, { minimumFractionDigits: 0 });
     },
     currency: (val: string | number | undefined) => {
       if (val === undefined || val === null || val === "") return "";
@@ -41,11 +36,14 @@ export function TextInput(props: TextInputProps): JSX.Element {
 
   const parses = {
     percent: (val: string) => {
-      if (!val || val.trim() === "") return undefined;
-      const num = parseFloat(val);
+      const matches = val.match(/^-?[\d,]*\.?\d{0,8}/);
+      const formattedNumber = matches ? matches[0] : "";
+      setIntermediateValue(formattedNumber);
+      if (!formattedNumber || formattedNumber.trim() === "") return undefined;
+      const num = parseFloat(formattedNumber);
       if (isNaN(num)) return undefined;
       const fractional = num / 100;
-      return parseFloat(fractional.toFixed(8));
+      return fractional;
     },
     currency: (val: string) => {
       if (!val || val.trim() === "") return undefined;
@@ -66,42 +64,12 @@ export function TextInput(props: TextInputProps): JSX.Element {
     if (autofocus && "focus" in theInput.current) theInput.current.focus();
   }, [autofocus]);
 
-  // Single local state for percent input; initialized from prop value once (no sync on later external changes)
-  const [percentInput, setPercentInput] = useState(() => displays.percent(value));
-  // Keep percent display in sync when external value loads/changes (avoid clobbering user while mid-typing)
-  useEffect(() => {
-    if (props.type !== "percent") return;
-    const isTransitional = (s: string | undefined) => !!s && (/^-?$/.test(s) || s === '.' || s === '-.' || /^-?\d+\.$/.test(s));
-    const desired = displays.percent(value);
-    if (percentInput !== desired && !isTransitional(percentInput)) {
-      setPercentInput(desired);
-    }
-    if (!percentInput && desired) {
-      setPercentInput(desired);
-    }
-  }, [value, props.type, percentInput]);
-
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const t = props.type ?? "text";
-    if (t === "percent") {
-      const txt = e.target.value;
-      setPercentInput(txt);
-      // Allow transitional forms (don't emit value yet)
-      if (txt === '' || /^-?$/.test(txt) || txt === '.' || txt === '-.' || /^-?\d+\.$/.test(txt)) return;
-      if (/^-?\d*\.?\d*$/.test(txt)) {
-        const num = parseFloat(txt);
-        if (!isNaN(num)) {
-          const fractional = parseFloat((num / 100).toFixed(8));
-          onChange(fractional);
-        }
-      }
-      return;
-    }
-    onChange(parses[t](e.target.value) ?? "");
+    const type = props.type ?? "text";
+    onChange(parses[type](e.target.value) ?? "");
   };
 
-  const isPercent = props.type === "percent";
-  const inputValue = isPercent ? percentInput : displays[props.type ?? "text"](value);
+  const inputValue = displays[props.type ?? "text"](value);
 
   return (
     <input
